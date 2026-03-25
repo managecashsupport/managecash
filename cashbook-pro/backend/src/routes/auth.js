@@ -216,18 +216,17 @@ export default async function authRoutes(fastify) {
       const { role = 'staff' } = request.body || {};
 
       // Enforce plan member limits
-      const planLimits = { starter: 3, growth: 10, pro: -1 };
+      const planLimits = { monthly: 5, yearly: 5, yearly_pro: 10 };
       const tenant = await Tenant.findOne({ shopId: payload.shopId });
-      const limit = planLimits[tenant?.plan] ?? 3;
-      if (limit !== -1) {
-        const currentUsers = await User.countDocuments({ shopId: payload.shopId, isActive: true });
-        if (currentUsers >= limit) {
-          const planName = (tenant?.plan || 'starter').charAt(0).toUpperCase() + (tenant?.plan || 'starter').slice(1);
-          return reply.status(403).send({
-            error: `Member limit reached. Your ${planName} plan allows up to ${limit} members. Upgrade to add more.`,
-            code: 'MEMBER_LIMIT_REACHED',
-          });
-        }
+      const limit = planLimits[tenant?.plan] ?? 5;
+      const currentUsers = await User.countDocuments({ shopId: payload.shopId, isActive: true });
+      if (currentUsers >= limit) {
+        const planNames = { monthly: 'Monthly', yearly: 'Yearly Basic', yearly_pro: 'Yearly Pro' };
+        const planName = planNames[tenant?.plan] || 'current';
+        return reply.status(403).send({
+          error: `Member limit reached. Your ${planName} plan allows up to ${limit} staff members. Upgrade to add more.`,
+          code: 'MEMBER_LIMIT_REACHED',
+        });
       }
 
       const code = randomBytes(4).toString('hex').toUpperCase(); // e.g. A3F9C2B1
