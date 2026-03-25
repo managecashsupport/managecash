@@ -329,7 +329,7 @@ const Landing = () => {
       <section className="py-20 bg-slate-900 text-center">
         <div className="max-w-xl mx-auto px-4">
           <h2 className="text-3xl font-bold text-white mb-4">Ready to take control of your cash?</h2>
-          <p className="text-slate-400 mb-8">Join hundreds of businesses already using CashBook Pro.</p>
+          <p className="text-slate-400 mb-8">Join hundreds of businesses already using Managecash.</p>
           <button
             onClick={() => navigate('/register')}
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 text-base"
@@ -342,7 +342,7 @@ const Landing = () => {
 
       {/* ── Footer ── */}
       <footer className="bg-slate-900 border-t border-white/5 py-6 text-center">
-        <p className="text-slate-500 text-sm">© 2025 CashBook Pro. All rights reserved.</p>
+        <p className="text-slate-500 text-sm">© 2025 Managecash. All rights reserved.</p>
       </footer>
     </div>
   )

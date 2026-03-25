@@ -207,7 +207,7 @@ const Register = () => {
             </div>
             <h2 className="text-2xl font-bold text-slate-900">You're all set!</h2>
             <p className="mt-1.5 text-slate-500 text-sm">
-              Your CashBook Pro workspace is ready.
+              Your Managecash workspace is ready.
             </p>
 
             {/* Credentials */}
@@ -255,7 +255,7 @@ const Register = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
         <div className="text-center">
           <BuildingStorefrontIcon className="mx-auto h-12 w-12 text-primary-600" />
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Create your CashBook Pro account</h2>
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">Create your Managecash account</h2>
           <p className="mt-2 text-sm text-gray-600">
             Start your 14-day free trial. No credit card required.
           </p>

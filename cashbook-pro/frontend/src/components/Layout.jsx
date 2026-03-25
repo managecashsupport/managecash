@@ -65,11 +65,9 @@ const SidebarInner = ({ activeHref, onLinkClick, onLogout, user, isAdmin }) => (
   <div className="flex flex-col h-full bg-slate-900">
     {/* Brand */}
     <div className="flex items-center gap-3 h-16 px-5 border-b border-white/5 flex-shrink-0">
-      <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/40">
-        <BookOpenIcon className="h-5 w-5 text-white" />
-      </div>
+      <img src="/logo.png" alt="Managecash" className="h-8 w-8 rounded-lg object-contain" />
       <span className="font-bold text-white text-lg tracking-tight">
-        CashBook <span className="text-blue-400">Pro</span>
+        Managecash
       </span>
     </div>
 
@@ -177,9 +175,10 @@ const Layout = () => {
             >
               <Bars3Icon className="h-5 w-5" />
             </button>
-            <span className="font-bold text-slate-900">
-              CashBook <span className="text-blue-600">Pro</span>
-            </span>
+            <div className="flex items-center gap-2">
+              <img src="/logo.png" alt="Managecash" className="h-7 w-7 rounded-lg object-contain" />
+              <span className="font-bold text-slate-900">Managecash</span>
+            </div>
             <div className="w-9" />
           </div>
         </header>

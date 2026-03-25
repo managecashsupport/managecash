@@ -111,7 +111,7 @@ const Login = () => {
             </div>
           </div>
 
-          <p className="text-slate-600 text-xs">© 2025 CashBook Pro. All rights reserved.</p>
+          <p className="text-slate-600 text-xs">© 2025 Managecash. All rights reserved.</p>
         </div>
       </div>
 

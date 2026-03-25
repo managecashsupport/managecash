@@ -145,7 +145,7 @@ const Dashboard = () => {
                   <span className="font-medium">
                     Your trial expires in {Math.ceil((new Date(user.trialEndsAt) - new Date()) / (1000 * 60 * 60 * 24))} days
                   </span>
-                  <span className="ml-2 text-yellow-600">— Upgrade to continue using CashBook Pro</span>
+                  <span className="ml-2 text-yellow-600">— Upgrade to continue using Managecash</span>
                 </div>
                 <button
                   onClick={() => navigate('/billing')}
