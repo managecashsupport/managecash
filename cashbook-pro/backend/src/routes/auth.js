@@ -146,7 +146,7 @@ export default async function authRoutes(fastify) {
 
       return reply.send({
         accessToken,
-        user: { id: user._id, name: user.name, role: user.role, shopId: user.shopId, plan: tenant.plan, username: user.username },
+        user: { id: user._id, name: user.name, role: user.role, shopId: user.shopId, plan: tenant.plan, username: user.username, subscriptionStatus: tenant.status, trialEndsAt: tenant.trialEndsAt, subscriptionEndsAt: tenant.subscriptionEndsAt },
       });
 
     } catch (err) {

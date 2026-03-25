@@ -15,7 +15,12 @@ function formatUser(user, txCount = 0, tenant = null) {
     isActive:         user.isActive,
     createdAt:        user.createdAt,
     transactionCount: txCount,
-    ...(tenant ? { plan: tenant.plan, trialEndsAt: tenant.trialEndsAt } : {}),
+    ...(tenant ? {
+      plan:               tenant.plan,
+      subscriptionStatus: tenant.status,
+      trialEndsAt:        tenant.trialEndsAt,
+      subscriptionEndsAt: tenant.subscriptionEndsAt,
+    } : {}),
   };
 }
 

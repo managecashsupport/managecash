@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ChartBarIcon,
@@ -6,68 +6,141 @@ import {
   ShieldCheckIcon,
   ArrowTrendingUpIcon,
   DevicePhoneMobileIcon,
-  BoltIcon,
   CheckIcon,
   ArrowRightIcon,
+  ArchiveBoxIcon,
+  ShoppingCartIcon,
+  BanknotesIcon,
+  ReceiptPercentIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline'
 
 const features = [
   {
     icon: ChartBarIcon,
-    title: 'Real-time Analytics',
-    desc: 'Instant insights into your cash flow with beautiful charts and daily/monthly summaries.',
+    title: 'Sales & Cash Analytics',
+    desc: 'Real-time charts for daily sales, cash flow, top customers, and monthly comparisons — all at a glance.',
     color: 'bg-blue-50 text-blue-600',
+  },
+  {
+    icon: ArchiveBoxIcon,
+    title: 'Stock & Inventory',
+    desc: 'Track your product stock levels. Get low-stock alerts before you run out. Know what\'s selling and what\'s sitting.',
+    color: 'bg-orange-50 text-orange-600',
+  },
+  {
+    icon: ShoppingCartIcon,
+    title: 'Purchases & Vendors',
+    desc: 'Record purchases from suppliers, track vendor bills, and see exactly how much you\'re spending on restocking.',
+    color: 'bg-violet-50 text-violet-600',
+  },
+  {
+    icon: UserGroupIcon,
+    title: 'Customer Wallet & Passbook',
+    desc: 'Maintain a running ledger for each customer. Track credit, collect payments, and share a passbook anytime.',
+    color: 'bg-emerald-50 text-emerald-600',
+  },
+  {
+    icon: BanknotesIcon,
+    title: 'Staff & Salary Management',
+    desc: 'Add staff, set salaries, record monthly payments, and track outstanding dues — no more manual payroll sheets.',
+    color: 'bg-cyan-50 text-cyan-600',
+  },
+  {
+    icon: ReceiptPercentIcon,
+    title: 'Expense Tracking',
+    desc: 'Categorise every business expense — rent, electricity, maintenance. See where your money is going each month.',
+    color: 'bg-pink-50 text-pink-600',
   },
   {
     icon: UsersIcon,
     title: 'Multi-staff Access',
-    desc: 'Add staff with role-based permissions. Every entry is tracked against the staff who made it.',
-    color: 'bg-violet-50 text-violet-600',
-  },
-  {
-    icon: ShieldCheckIcon,
-    title: 'Secure & Reliable',
-    desc: 'Your data is encrypted and isolated per business. No one else can see your transactions.',
-    color: 'bg-emerald-50 text-emerald-600',
+    desc: 'Give your team role-based access. Staff log entries from their phone; you review everything from yours.',
+    color: 'bg-amber-50 text-amber-600',
   },
   {
     icon: DevicePhoneMobileIcon,
     title: 'Works on Any Device',
-    desc: 'Optimised for mobile and desktop. Staff can log entries from their phone instantly.',
-    color: 'bg-orange-50 text-orange-600',
+    desc: 'Fully responsive — works seamlessly on mobile, tablet, and desktop without installing anything.',
+    color: 'bg-teal-50 text-teal-600',
   },
   {
-    icon: BoltIcon,
-    title: 'Fast Entry',
-    desc: 'Add cash in / cash out in seconds. Attach bill photos, notes, and payment mode.',
-    color: 'bg-amber-50 text-amber-600',
-  },
-  {
-    icon: ArrowTrendingUpIcon,
-    title: 'Growth Tracking',
-    desc: 'Compare periods, track best-performing days, and understand your business trends.',
-    color: 'bg-pink-50 text-pink-600',
+    icon: ShieldCheckIcon,
+    title: 'Secure & Isolated',
+    desc: 'Your data is encrypted and completely isolated from other businesses. No one else can see your records.',
+    color: 'bg-slate-50 text-slate-600',
   },
 ]
 
 const plans = [
   {
-    name: 'Starter',
-    price: 499,
-    features: ['3 staff members', '500 transactions / month', 'Basic analytics', 'Email support'],
+    name: 'Monthly',
+    price: '₹300',
+    cycle: '/month',
+    note: null,
+    badge: null,
+    maxStaff: 5,
+    features: [
+      '5 staff members',
+      'Unlimited transactions',
+      'Customer wallet & passbook',
+      'Stock & inventory management',
+      'Purchase & vendor tracking',
+      'Expense management',
+      'Salary management',
+      'Analytics & reports',
+      'WhatsApp notifications',
+      'Village-wise customer filter',
+    ],
     popular: false,
+    btnClass: 'bg-slate-800 hover:bg-slate-900 text-white',
   },
   {
-    name: 'Growth',
-    price: 999,
-    features: ['10 staff members', 'Unlimited transactions', 'Advanced analytics', 'Priority support'],
+    name: 'Yearly Basic',
+    price: '₹3,000',
+    cycle: '/year',
+    note: '≈ ₹250/month — Save ₹600',
+    badge: 'Save ₹600',
+    maxStaff: 5,
+    features: [
+      '5 staff members',
+      'Unlimited transactions',
+      'Customer wallet & passbook',
+      'Stock & inventory management',
+      'Purchase & vendor tracking',
+      'Expense management',
+      'Salary management',
+      'Analytics & reports',
+      'WhatsApp notifications',
+      'Village-wise customer filter',
+      'Priority support',
+    ],
+    popular: false,
+    btnClass: 'bg-blue-600 hover:bg-blue-700 text-white',
+  },
+  {
+    name: 'Yearly Pro',
+    price: '₹5,000',
+    cycle: '/year',
+    note: '≈ ₹417/month',
+    badge: 'Most Popular',
+    maxStaff: 10,
+    features: [
+      '10 staff members',
+      'Unlimited transactions',
+      'Customer wallet & passbook',
+      'Stock & inventory management',
+      'Purchase & vendor tracking',
+      'Expense management',
+      'Salary management',
+      'Analytics & reports',
+      'WhatsApp notifications',
+      'Village-wise customer filter',
+      'Priority support',
+      'Dedicated account manager',
+    ],
     popular: true,
-  },
-  {
-    name: 'Pro',
-    price: 1499,
-    features: ['Unlimited staff', 'Unlimited transactions', 'Custom reports', 'Dedicated support'],
-    popular: false,
+    btnClass: 'bg-violet-600 hover:bg-violet-700 text-white',
   },
 ]
 
@@ -231,6 +304,36 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* ── Module highlights ── */}
+      <section className="py-20 bg-slate-900 text-white overflow-hidden">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">One app. Every business need.</h2>
+            <p className="text-slate-400 text-lg max-w-xl mx-auto">
+              From tracking daily sales to managing your entire inventory — Managecash covers it all.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[
+              { icon: ArrowTrendingUpIcon, label: 'Sales Tracking',    color: 'from-blue-500/20 to-blue-600/5',    icon_color: 'text-blue-400' },
+              { icon: ArchiveBoxIcon,      label: 'Inventory & Stock', color: 'from-orange-500/20 to-orange-600/5', icon_color: 'text-orange-400' },
+              { icon: ShoppingCartIcon,    label: 'Purchases',         color: 'from-violet-500/20 to-violet-600/5', icon_color: 'text-violet-400' },
+              { icon: UserGroupIcon,       label: 'Customer Wallet',   color: 'from-emerald-500/20 to-emerald-600/5',icon_color: 'text-emerald-400' },
+              { icon: BanknotesIcon,       label: 'Salary & Staff',    color: 'from-cyan-500/20 to-cyan-600/5',    icon_color: 'text-cyan-400' },
+              { icon: ReceiptPercentIcon,  label: 'Expenses',          color: 'from-pink-500/20 to-pink-600/5',    icon_color: 'text-pink-400' },
+            ].map(m => (
+              <div key={m.label} className={`flex flex-col items-center gap-3 p-5 rounded-2xl bg-gradient-to-b ${m.color} border border-white/5 text-center`}>
+                <div className={`p-3 rounded-xl bg-white/5 ${m.icon_color}`}>
+                  <m.icon className="h-6 w-6" />
+                </div>
+                <span className="text-sm font-semibold text-white leading-tight">{m.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── How it works ── */}
       <section className="py-24 bg-slate-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -276,41 +379,43 @@ const Landing = () => {
       <section className="py-24 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">Simple pricing</h2>
-            <p className="text-slate-500 text-lg">All plans include a 14-day free trial</p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">Simple, transparent pricing</h2>
+            <p className="text-slate-500 text-lg">All plans include a 14-day free trial. No credit card required.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {plans.map((plan) => (
               <div
                 key={plan.name}
-                className={`card p-6 relative ${plan.popular ? 'ring-2 ring-blue-600' : ''}`}
+                className={`card p-6 relative flex flex-col ${plan.popular ? 'ring-2 ring-violet-500 border-violet-200' : ''}`}
               >
-                {plan.popular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">
-                    Most Popular
+                {plan.badge && (
+                  <span className={`absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full ${
+                    plan.badge === 'Most Popular' ? 'bg-violet-600 text-white' : 'bg-emerald-500 text-white'
+                  }`}>
+                    {plan.badge}
                   </span>
                 )}
                 <h3 className="text-lg font-bold text-slate-900">{plan.name}</h3>
-                <div className="mt-3 mb-5">
-                  <span className="text-3xl font-bold text-slate-900">₹{plan.price}</span>
-                  <span className="text-slate-400 text-sm"> / month</span>
+                <div className="mt-3 mb-1">
+                  <span className="text-3xl font-bold text-slate-900">{plan.price}</span>
+                  <span className="text-slate-400 text-sm">{plan.cycle}</span>
                 </div>
-                <ul className="space-y-2.5 mb-6">
+                {plan.note && (
+                  <p className="text-xs text-emerald-600 font-medium mb-4">{plan.note}</p>
+                )}
+                {!plan.note && <div className="mb-4" />}
+                <ul className="space-y-2 flex-1 mb-6">
                   {plan.features.map(f => (
-                    <li key={f} className="flex items-center gap-2.5 text-sm text-slate-600">
-                      <CheckIcon className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
+                      <CheckIcon className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
                       {f}
                     </li>
                   ))}
                 </ul>
                 <button
                   onClick={() => navigate('/register')}
-                  className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                    plan.popular
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                  }`}
+                  className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${plan.btnClass}`}
                 >
                   Start Free Trial
                 </button>
