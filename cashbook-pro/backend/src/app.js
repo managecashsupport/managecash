@@ -15,12 +15,12 @@ import purchaseRoutes from './routes/purchases.js';
 import salaryRoutes from './routes/salaries.js';
 import expenseRoutes from './routes/expenses.js';
 
-export async function buildApp() {
+export async function buildApp() {  
   const fastify = Fastify({ logger: false, trustProxy: true });
 
-  await fastify.register(helmet);
+  await fastify.register(helmet);    
   await fastify.register(cors, {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: process.env.FRONTEND_URL || 'https://managecash-rho.vercel.app',
     credentials: true,
   });
   await fastify.register(cookie, {
