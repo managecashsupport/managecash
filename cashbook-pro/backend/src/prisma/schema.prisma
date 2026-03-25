@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── PUBLIC SCHEMA (Platform-wide) ───────────────────────
+
+model Tenant {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId                  String    @unique @map("shop_id") @db.VarChar(50)
+  shopName                String    @map("shop_name") @db.VarChar(200)
+  ownerEmail              String    @unique @map("owner_email") @db.VarChar(200)
+  ownerName               String    @map("owner_name") @db.VarChar(200)
+  plan                    String    @default("starter") @db.VarChar(50)
+  status                  String    @default("trial") @db.VarChar(50)
+  razorpaySubscriptionId  String?   @map("razorpay_subscription_id") @db.VarChar(200)
+  trialEndsAt             DateTime? @map("trial_ends_at") @db.Timestamptz
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("tenants")
+}
+
+model Plan {
+  id                        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                      String  @unique @db.VarChar(50)
+  priceMonthly              Int     @map("price_monthly")
+  priceYearly               Int     @map("price_yearly")
+  maxUsers                  Int     @map("max_users")
+  maxTransactionsPerMonth   Int     @map("max_transactions_per_month")
+  razorpayPlanIdMonthly     String? @map("razorpay_plan_id_monthly") @db.VarChar(200)
+  razorpayPlanIdYearly      String? @map("razorpay_plan_id_yearly") @db.VarChar(200)
+
+  @@map("plans")
+}
+
+// ─── TENANT SCHEMAS (Dynamic, created at runtime) ───────────────────────
+// Note: These models represent the structure that will be created
+// in each tenant's schema during provisioning. They are not directly
+// managed by Prisma migrations but serve as documentation.
+
+// Users table (created in tenant schema)
+// CREATE TABLE IF NOT EXISTS "{shopId}".users (
+//   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+//   name VARCHAR(200) NOT NULL,
+//   username VARCHAR(100) UNIQUE NOT NULL,
+//   password_hash VARCHAR(500) NOT NULL,
+//   role VARCHAR(50) DEFAULT 'staff',
+//   is_active BOOLEAN DEFAULT true,
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// )
+
+// Transactions table (created in tenant schema)
+// CREATE TABLE IF NOT EXISTS "{shopId}".transactions (
+//   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+//   type VARCHAR(10) NOT NULL CHECK (type IN ('in', 'out')),
+//   customer_name VARCHAR(200) NOT NULL,
+//   product_description TEXT,
+//   amount DECIMAL(12,2) NOT NULL CHECK (amount > 0),
+//   date DATE NOT NULL,
+//   pay_mode VARCHAR(20) DEFAULT 'cash' CHECK (pay_mode IN ('cash', 'online')),
+//   staff_id UUID NOT NULL,
+//   staff_name VARCHAR(200) NOT NULL,
+//   image_url TEXT,
+//   notes TEXT,
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   updated_at TIMESTAMPTZ DEFAULT NOW()
+// )
+
+// Settings table (created in tenant schema)
+// CREATE TABLE IF NOT EXISTS "{shopId}".settings (
+//   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+//   shop_name VARCHAR(200),
+//   logo_url TEXT,
+//   currency VARCHAR(10) DEFAULT 'INR',
+//   timezone VARCHAR(100) DEFAULT 'Asia/Kolkata',
+//   updated_at TIMESTAMPTZ DEFAULT NOW()
+// )
