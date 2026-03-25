@@ -31,7 +31,9 @@ const Register = () => {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [verificationSent, setVerificationSent] = useState(null) // { email, shopId, username }
+  const [resending, setResending] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState(false)
   const [shopIdAvailable, setShopIdAvailable] = useState(null)
   const [shopIdChecking, setShopIdChecking] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState(0)
@@ -171,11 +173,10 @@ const Register = () => {
       formData.confirmPassword
     )
     
-    if (result.success) {
-      setSuccess(true)
-      setTimeout(() => {
-        navigate('/dashboard')
-      }, 2000)
+    if (result.success && result.requiresVerification) {
+      setVerificationSent({ email: result.email, shopId: result.shopId, username: result.username })
+    } else if (result.success) {
+      navigate('/dashboard')
     } else {
       setError(result.error)
     }
@@ -194,56 +195,70 @@ const Register = () => {
 
   const planDetails = getPlanDetails(formData.plan)
 
-  if (success) {
-    const inviteLink = `${window.location.origin}/login?shop=${formData.shopId}`
-    const copyLink = () => navigator.clipboard.writeText(inviteLink)
+  const handleResend = async () => {
+    if (!verificationSent?.email) return
+    setResending(true)
+    setResendSuccess(false)
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: verificationSent.email }),
+      })
+      setResendSuccess(true)
+    } finally {
+      setResending(false)
+    }
+  }
 
+  if (verificationSent) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <div className="card p-8 text-center">
-            <div className="mx-auto h-14 w-14 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-              <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
+            <div className="mx-auto h-14 w-14 rounded-full bg-blue-100 flex items-center justify-center mb-4">
+              <EnvelopeIcon className="h-8 w-8 text-blue-600" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900">You're all set!</h2>
-            <p className="mt-1.5 text-slate-500 text-sm">
-              Your Managecash workspace is ready.
+            <h2 className="text-2xl font-bold text-slate-900">Check your email</h2>
+            <p className="mt-2 text-slate-500 text-sm">
+              We sent a verification link to
+            </p>
+            <p className="font-semibold text-slate-800 text-sm mt-0.5">{verificationSent.email}</p>
+            <p className="mt-3 text-slate-500 text-sm">
+              Click the link in the email to verify your account and start your free trial.
             </p>
 
-            {/* Credentials */}
-            <div className="mt-6 bg-slate-50 rounded-xl p-4 text-left border border-slate-200 space-y-3">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Business ID</p>
-                <p className="text-lg font-bold text-slate-900 font-mono">{formData.shopId}</p>
+            <div className="mt-6 bg-slate-50 rounded-xl p-4 text-left border border-slate-200 space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Your login details</p>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-500">Business ID</span>
+                <span className="text-sm font-bold text-slate-800 font-mono">{verificationSent.shopId}</span>
               </div>
-              <div className="border-t border-slate-200 pt-3">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Your Admin Username</p>
-                <p className="text-lg font-bold text-blue-600 font-mono">{formData.shopId}_admin</p>
-                <p className="text-xs text-slate-400 mt-1">Use this to sign in on the Admin tab</p>
-              </div>
-              <div className="border-t border-slate-200 pt-3">
-                <p className="text-xs text-slate-400">Plan: {planDetails.name} · 14-day free trial</p>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-500">Username</span>
+                <span className="text-sm font-bold text-blue-600 font-mono">{verificationSent.username}</span>
               </div>
             </div>
 
-            {/* Employee invite link */}
-            <div className="mt-4 text-left">
-              <p className="text-xs font-semibold text-slate-500 mb-2">Share this link with your employees</p>
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
-                <p className="flex-1 text-xs text-blue-700 font-mono truncate">{inviteLink}</p>
-                <button
-                  onClick={copyLink}
-                  className="flex-shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors px-2 py-1 rounded-lg hover:bg-blue-100"
-                >
-                  Copy
-                </button>
-              </div>
-              <p className="mt-1.5 text-xs text-slate-400">
-                Employees use this link to sign in — they won't need to enter a Business ID.
-              </p>
-            </div>
+            <p className="mt-4 text-xs text-slate-400">The link expires in 24 hours.</p>
 
-            <p className="mt-6 text-xs text-slate-400">Redirecting to dashboard in 2 seconds…</p>
+            {resendSuccess && (
+              <p className="mt-3 text-xs text-emerald-600 font-medium">Verification email resent!</p>
+            )}
+            <button
+              onClick={handleResend}
+              disabled={resending}
+              className="mt-3 text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+            >
+              {resending ? 'Sending…' : "Didn't receive it? Resend"}
+            </button>
+
+            <button
+              onClick={() => navigate('/login')}
+              className="mt-5 w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
+            >
+              Go to Sign In
+            </button>
           </div>
         </div>
       </div>
@@ -480,60 +495,6 @@ const Register = () => {
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Plan Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Select Your Plan
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {['starter', 'growth', 'pro'].map((plan) => {
-                  const details = getPlanDetails(plan)
-                  return (
-                    <div
-                      key={plan}
-                      className={`relative border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                        formData.plan === plan
-                          ? 'border-primary-600 bg-primary-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => setFormData(prev => ({ ...prev, plan }))}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className={`h-4 w-4 rounded-full border-2 ${
-                            formData.plan === plan ? 'border-primary-600 bg-primary-600' : 'border-gray-300'
-                          }`}>
-                            {formData.plan === plan && (
-                              <div className="h-2 w-2 bg-white rounded-full mx-auto mt-1"></div>
-                            )}
-                          </div>
-                          <div className="ml-3">
-                            <h3 className="text-sm font-medium text-gray-900">{details.name}</h3>
-                            <p className="text-sm text-gray-500">₹{details.price}/month</p>
-                          </div>
-                        </div>
-                        {plan === 'starter' && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            14-day free trial
-                          </span>
-                        )}
-                      </div>
-                      <ul className="mt-3 space-y-1">
-                        {details.features.map((feature, index) => (
-                          <li key={index} className="text-xs text-gray-600 flex items-center">
-                            <svg className="h-3 w-3 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                })}
               </div>
             </div>
 

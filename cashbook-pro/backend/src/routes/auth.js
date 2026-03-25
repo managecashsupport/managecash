@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto';
 import Tenant from '../models/Tenant.js';
 import User from '../models/User.js';
 import InviteCode from '../models/InviteCode.js';
+import { sendVerificationEmail } from '../services/email.js';
 
 function generateTokens(userId, shopId, role) {
   const accessToken = jwt.sign(
@@ -71,17 +72,25 @@ export default async function authRoutes(fastify) {
       // Create tenant
       const tenant = await Tenant.create({ shopId, shopName, ownerName, ownerEmail });
 
-      // Create admin user — username derived from shopId
+      // Create admin user — unverified until email confirmed
       const username = `${shopId}_admin`;
       const passwordHash = await bcrypt.hash(password, 12);
-      const user = await User.create({ shopId, name: ownerName, username, email: ownerEmail, passwordHash, role: 'admin' });
+      const verifyToken = randomBytes(32).toString('hex');
+      const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+      const user = await User.create({
+        shopId, name: ownerName, username, email: ownerEmail, passwordHash, role: 'admin',
+        emailVerified: false, emailVerifyToken: verifyToken, emailVerifyExpiry: verifyExpiry,
+      });
 
-      const { accessToken, refreshToken } = generateTokens(user._id.toString(), shopId, 'admin');
-      setRefreshTokenCookie(reply, refreshToken);
+      // Send verification email (non-blocking — don't fail registration if email fails)
+      sendVerificationEmail({ to: ownerEmail, name: ownerName, token: verifyToken })
+        .catch(err => console.error('Verification email failed:', err.message));
 
       return reply.status(201).send({
-        accessToken,
-        user: { id: user._id, name: user.name, role: 'admin', shopId, username },
+        requiresVerification: true,
+        email: ownerEmail,
+        shopId,
+        username,
       });
 
     } catch (err) {
@@ -140,6 +149,15 @@ export default async function authRoutes(fastify) {
 
       const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) return reply.status(401).send({ error: 'Invalid credentials' });
+
+      // Block login if email not verified (admin only — staff don't have email verification)
+      if (user.role === 'admin' && !user.emailVerified) {
+        return reply.status(403).send({
+          error: 'Please verify your email before signing in. Check your inbox for the verification link.',
+          code: 'EMAIL_NOT_VERIFIED',
+          email: user.email,
+        });
+      }
 
       const { accessToken, refreshToken } = generateTokens(user._id.toString(), user.shopId, user.role);
       setRefreshTokenCookie(reply, refreshToken);
@@ -257,6 +275,59 @@ export default async function authRoutes(fastify) {
       return reply.send({ shopId: invite.shopId, shopName: tenant?.shopName || invite.shopId, role: invite.role });
     } catch (err) {
       return reply.status(500).send({ error: 'Failed to validate invite code' });
+    }
+  });
+
+  // GET /auth/verify-email/:token — verify email address
+  fastify.get('/verify-email/:token', async (request, reply) => {
+    try {
+      const { token } = request.params;
+      const user = await User.findOne({
+        emailVerifyToken: token,
+        emailVerifyExpiry: { $gt: new Date() },
+      });
+
+      if (!user) {
+        return reply.status(400).send({ error: 'Verification link is invalid or has expired.' });
+      }
+
+      await User.findByIdAndUpdate(user._id, {
+        $set:   { emailVerified: true },
+        $unset: { emailVerifyToken: '', emailVerifyExpiry: '' },
+      });
+
+      return reply.send({ success: true, shopId: user.shopId, username: user.username });
+    } catch (err) {
+      console.error('Email verification error:', err);
+      return reply.status(500).send({ error: 'Verification failed' });
+    }
+  });
+
+  // POST /auth/resend-verification — resend verification email
+  fastify.post('/resend-verification', async (request, reply) => {
+    try {
+      const { email } = request.body;
+      if (!email) return reply.status(400).send({ error: 'Email is required' });
+
+      const user = await User.findOne({ email, emailVerified: false });
+      if (!user) {
+        // Don't reveal if email exists
+        return reply.send({ success: true });
+      }
+
+      const verifyToken = randomBytes(32).toString('hex');
+      const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await User.findByIdAndUpdate(user._id, {
+        $set: { emailVerifyToken: verifyToken, emailVerifyExpiry: verifyExpiry },
+      });
+
+      sendVerificationEmail({ to: user.email, name: user.name, token: verifyToken })
+        .catch(err => console.error('Resend verification email failed:', err.message));
+
+      return reply.send({ success: true });
+    } catch (err) {
+      console.error('Resend verification error:', err);
+      return reply.status(500).send({ error: 'Failed to resend verification email' });
     }
   });
 

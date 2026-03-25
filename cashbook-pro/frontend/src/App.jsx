@@ -19,6 +19,7 @@ import Stock from './pages/Stock'
 import Purchases from './pages/Purchases'
 import Salary from './pages/Salary'
 import Expenses from './pages/Expenses'
+import VerifyEmail from './pages/VerifyEmail'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -43,7 +44,8 @@ function App() {
       {/* Auth pages */}
       <Route path="/login"    element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} />
-      <Route path="/join"     element={isAuthenticated ? <Navigate to="/dashboard" /> : <Join />} />
+      <Route path="/join"          element={isAuthenticated ? <Navigate to="/dashboard" /> : <Join />} />
+      <Route path="/verify-email"  element={<VerifyEmail />} />
 
       {/* Protected app routes */}
       <Route path="/" element={

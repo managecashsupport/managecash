@@ -101,15 +101,25 @@ export const AuthProvider = ({ children }) => {
         confirmPassword
       });
 
+      // Registration requires email verification — don't log in yet
+      if (response.data.requiresVerification) {
+        return {
+          success: true,
+          requiresVerification: true,
+          email: response.data.email,
+          shopId: response.data.shopId,
+          username: response.data.username,
+        };
+      }
+
       window.__accessToken = response.data.accessToken;
       setUser(response.data.user);
       setIsAuthenticated(true);
-      
       return { success: true };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.error || 'Registration failed' 
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Registration failed'
       };
     } finally {
       setIsLoading(false);
