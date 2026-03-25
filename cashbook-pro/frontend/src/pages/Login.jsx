@@ -5,7 +5,6 @@ import {
   BuildingStorefrontIcon,
   LockClosedIcon,
   ExclamationTriangleIcon,
-  BookOpenIcon,
   EyeIcon,
   EyeSlashIcon,
   ShieldCheckIcon,
@@ -70,12 +69,8 @@ const Login = () => {
 
         <div className="relative flex flex-col h-full p-12">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/40">
-              <BookOpenIcon className="h-6 w-6 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">
-              CashBook <span className="text-blue-400">Pro</span>
-            </span>
+            <img src="/logo.png" alt="Managecash" className="h-10 w-10 rounded-xl object-contain" />
+            <span className="text-xl font-bold text-white">Managecash</span>
           </div>
 
           <div className="flex-1 flex flex-col justify-center">
@@ -120,12 +115,8 @@ const Login = () => {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-10 lg:hidden">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center">
-              <BookOpenIcon className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-lg font-bold text-slate-900">
-              CashBook <span className="text-blue-600">Pro</span>
-            </span>
+            <img src="/logo.png" alt="Managecash" className="h-9 w-9 rounded-xl object-contain" />
+            <span className="text-lg font-bold text-slate-900">Managecash</span>
           </div>
 
           <div className="mb-8">
