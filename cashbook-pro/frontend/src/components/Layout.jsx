@@ -11,7 +11,6 @@ import {
   Bars3Icon,
   XMarkIcon,
   ArrowRightOnRectangleIcon,
-  BookOpenIcon,
   UsersIcon,
   UserGroupIcon,
   ArchiveBoxIcon,
