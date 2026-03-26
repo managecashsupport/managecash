@@ -150,7 +150,7 @@ const Stock = () => {
     try {
       await api.delete(`/stock/${id}`)
       setDeleteId(null); flash('Item removed'); fetchItems(); fetchCategories()
-    } catch { setError('Failed to remove item') }
+    } catch (err) { setDeleteId(null); setError(err.response?.data?.error || 'Failed to remove item') }
   }
 
   // ── Analytics chart data ──

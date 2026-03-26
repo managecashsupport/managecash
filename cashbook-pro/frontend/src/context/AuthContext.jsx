@@ -80,9 +80,11 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.error || 'Login failed' 
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Login failed',
+        code: error.response?.data?.code,
+        email: error.response?.data?.email,
       };
     } finally {
       setIsLoading(false);

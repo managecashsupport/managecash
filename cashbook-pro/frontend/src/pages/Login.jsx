@@ -20,6 +20,8 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [unverifiedEmail, setUnverifiedEmail] = useState('')
+  const [resendDone, setResendDone] = useState(false)
 
   const [staffForm, setStaffForm] = useState({ identifier: '', password: '' })
   const [adminForm, setAdminForm] = useState({ shopId: shopFromUrl, username: '', password: '' })
@@ -46,14 +48,26 @@ const Login = () => {
       navigate(from, { replace: true })
     } else {
       setError(result.error)
+      if (result.code === 'EMAIL_NOT_VERIFIED') {
+        setUnverifiedEmail(result.email || '')
+      }
     }
     setIsLoading(false)
+  }
+
+  const handleResendVerification = async () => {
+    try {
+      await import('../services/api').then(m => m.default.post('/auth/resend-verification', { email: unverifiedEmail }))
+      setResendDone(true)
+    } catch {}
   }
 
   const switchTab = (t) => {
     setTab(t)
     setError('')
     setShowPassword(false)
+    setUnverifiedEmail('')
+    setResendDone(false)
   }
 
   return (
@@ -153,9 +167,23 @@ const Login = () => {
           </div>
 
           {error && (
-            <div className="mb-5 flex gap-3 items-start bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-xl">
-              <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-400" />
-              <p className="text-sm font-medium">{error}</p>
+            <div className="mb-5 bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-xl">
+              <div className="flex gap-3 items-start">
+                <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-400" />
+                <p className="text-sm font-medium">{error}</p>
+              </div>
+              {unverifiedEmail && (
+                <div className="mt-2 pl-8">
+                  {resendDone ? (
+                    <p className="text-xs text-emerald-600 font-medium">Verification email sent! Check your inbox.</p>
+                  ) : (
+                    <button type="button" onClick={handleResendVerification}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 underline underline-offset-2">
+                      Resend verification email
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

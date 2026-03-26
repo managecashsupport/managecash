@@ -188,8 +188,9 @@ export default async function authRoutes(fastify) {
         return reply.status(401).send({ error: 'Invalid refresh token' });
       }
 
+      // Always use role from DB so stale/missing role in token is corrected
       const accessToken = jwt.sign(
-        { userId, shopId, role },
+        { userId, shopId, role: user.role },
         process.env.JWT_ACCESS_SECRET,
         { expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' }
       );
