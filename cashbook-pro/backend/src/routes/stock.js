@@ -1,9 +1,11 @@
 import Stock, { LOW_STOCK_THRESHOLD } from '../models/Stock.js';
 import StockMovement from '../models/StockMovement.js';
 import { tenantResolver } from '../middleware/tenantResolver.js';
+import { roleCheck } from '../middleware/roleCheck.js';
 
 export default async function stockRoutes(fastify) {
-  const auth = { preHandler: [tenantResolver] };
+  const auth      = { preHandler: [tenantResolver] };
+  const adminAuth = { preHandler: [tenantResolver, roleCheck(['admin'])] };
 
   // ── GET /stock — list all items ──
   fastify.get('/', auth, async (request, reply) => {
@@ -123,8 +125,8 @@ export default async function stockRoutes(fastify) {
     return reply.send(item);
   });
 
-  // ── DELETE /stock/:id — soft delete ──
-  fastify.delete('/:id', auth, async (request, reply) => {
+  // ── DELETE /stock/:id — soft delete (admin only) ──
+  fastify.delete('/:id', adminAuth, async (request, reply) => {
     const item = await Stock.findOne({ _id: request.params.id, shopId: request.user.shopId });
     if (!item) return reply.status(404).send({ error: 'Stock item not found' });
     item.isActive = false;

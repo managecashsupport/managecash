@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import {
   ArchiveBoxIcon, PlusIcon, PencilIcon, TrashIcon, XMarkIcon,
@@ -21,6 +22,8 @@ const UNITS = ['pcs', 'kg', 'g', 'litre', 'ml', 'box', 'dozen', 'packet', 'roll'
 const emptyForm = { name: '', category: '', description: '', quantity: '', unit: 'pcs', pricePerUnit: '' }
 
 const Stock = () => {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [items, setItems] = useState([])
   const [grouped, setGrouped] = useState({})
   const [categories, setCategories] = useState([])
@@ -289,10 +292,12 @@ const Stock = () => {
                             className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit">
                             <PencilIcon className="h-4 w-4" />
                           </button>
-                          <button onClick={() => setDeleteId(item._id)}
-                            className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove">
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
+                          {isAdmin && (
+                            <button onClick={() => setDeleteId(item._id)}
+                              className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove">
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

@@ -40,6 +40,7 @@ const History = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [confirmTx, setConfirmTx] = useState(null) // transaction pending delete confirmation
 
   // Fetch staff list for filter (admin only)
   useEffect(() => {
@@ -178,6 +179,7 @@ const History = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
@@ -503,11 +505,7 @@ const History = () => {
                               </button>
                               
                               <button
-                                onClick={() => {
-                                  if (window.confirm('Are you sure you want to delete this transaction?')) {
-                                    handleDelete(transaction.id || transaction._id)
-                                  }
-                                }}
+                                onClick={() => setConfirmTx(transaction)}
                                 className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                                 title="Delete Transaction"
                               >
@@ -547,6 +545,62 @@ const History = () => {
         </div>
       </div>
     </div>
+
+    {/* ── Delete Confirmation Modal ── */}
+
+    {confirmTx && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmTx(null)} />
+        <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm z-10">
+          <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+            <TrashIcon className="h-6 w-6 text-red-500" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 text-center">Delete Transaction?</h3>
+          <p className="text-sm text-slate-500 text-center mt-1 mb-4">This action cannot be undone.</p>
+
+          {/* Transaction details */}
+          <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 mb-5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Customer</span>
+              <span className="font-semibold text-slate-800">{confirmTx.customerName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Amount</span>
+              <span className={`font-bold ${confirmTx.type === 'in' ? 'text-emerald-600' : 'text-red-600'}`}>
+                {confirmTx.type === 'in' ? '+' : '-'}₹{Number(confirmTx.amount).toLocaleString('en-IN')}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Date</span>
+              <span className="text-slate-700">{new Date(confirmTx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Staff</span>
+              <span className="text-slate-700">{confirmTx.staffName}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmTx(null)}
+              className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                handleDelete(confirmTx.id || confirmTx._id)
+                setConfirmTx(null)
+              }}
+              className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
