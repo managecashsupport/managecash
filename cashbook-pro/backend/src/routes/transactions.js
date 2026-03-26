@@ -4,6 +4,7 @@ import Transaction from '../models/Transaction.js';
 import User from '../models/User.js';
 import Stock from '../models/Stock.js';
 import StockMovement from '../models/StockMovement.js';
+import Customer from '../models/Customer.js';
 
 function fmt(n) { return parseFloat((n || 0).toFixed(2)); }
 
@@ -100,7 +101,7 @@ export default async function transactionRoutes(fastify) {
   fastify.post('/', { preHandler: [tenantResolver] }, async (request, reply) => {
     try {
       const { type, customerName, amount, productDescription, date, payMode, imageUrl, imageKey, notes,
-              stockId, quantitySold } = request.body;
+              stockId, quantitySold, linkedCustomerId } = request.body;
 
       if (!type || !customerName || !amount || !date) {
         return reply.status(400).send({ error: 'Type, customer name, amount, and date are required' });
@@ -137,6 +138,13 @@ export default async function transactionRoutes(fastify) {
         if (!quantitySold || quantitySold <= 0) return reply.status(400).send({ error: 'Quantity sold is required when a product is selected' });
       }
 
+      // Resolve linked customer if provided
+      let linkedCustomer = null;
+      if (linkedCustomerId) {
+        linkedCustomer = await Customer.findOne({ _id: linkedCustomerId, shopId: request.user.shopId, isActive: true });
+        // Don't fail the transaction if customer not found — just skip linking
+      }
+
       const transaction = await Transaction.create({
         shopId: request.user.shopId,
         type, customerName, amount: amountNum,
@@ -148,12 +156,24 @@ export default async function transactionRoutes(fastify) {
         imageUrl: imageUrl || null,
         imageKey: imageKey || null,
         notes: notes || null,
-        stockId:       stockItem ? stockItem._id  : null,
-        stockName:     stockItem ? stockItem.name : null,
-        stockCategory: stockItem ? stockItem.category : null,
-        quantitySold:  stockItem ? Number(quantitySold) : null,
-        unit:          stockItem ? stockItem.unit : null,
+        stockId:          stockItem ? stockItem._id  : null,
+        stockName:        stockItem ? stockItem.name : null,
+        stockCategory:    stockItem ? stockItem.category : null,
+        quantitySold:     stockItem ? Number(quantitySold) : null,
+        unit:             stockItem ? stockItem.unit : null,
+        linkedCustomerId: linkedCustomer ? linkedCustomer._id : null,
+        linkedCustomerUid:linkedCustomer ? linkedCustomer.customerId : null,
       });
+
+      // Update customer wallet balance
+      // type 'out' = goods given to customer on credit → balance increases (they owe more)
+      // type 'in'  = customer paid you → balance decreases
+      if (linkedCustomer) {
+        const balanceDelta = type === 'out' ? amountNum : -amountNum;
+        linkedCustomer.balance += balanceDelta;
+        linkedCustomer.isLoan = linkedCustomer.balance > 0;
+        await linkedCustomer.save();
+      }
 
       // Deduct stock and record movement
       if (stockItem) {

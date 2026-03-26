@@ -20,6 +20,9 @@ const transactionSchema = new mongoose.Schema({
   stockCategory:      { type: String, default: null },
   quantitySold:       { type: Number, default: null },
   unit:               { type: String, default: null },
+  // Customer wallet linkage (optional)
+  linkedCustomerId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
+  linkedCustomerUid:  { type: String, default: null }, // human-readable customerId e.g. "C001"
 }, { timestamps: true });
 
 export default mongoose.model('Transaction', transactionSchema);

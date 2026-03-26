@@ -86,9 +86,47 @@ const AddTransaction = () => {
     setQuantitySold('')
   }
 
-  // Auto-suggest customer name from history
-  const [suggestions, setSuggestions] = useState([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  // Customer autocomplete
+  const [customerQuery, setCustomerQuery] = useState('')
+  const [customerSuggestions, setCustomerSuggestions] = useState([])
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const customerRef = React.useRef(null)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (customerRef.current && !customerRef.current.contains(e.target)) {
+        setShowCustomerDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Fetch customer suggestions as user types
+  useEffect(() => {
+    if (customerQuery.length < 2) { setCustomerSuggestions([]); return }
+    const timer = setTimeout(() => {
+      api.get(`/customers?search=${encodeURIComponent(customerQuery)}&limit=8`)
+        .then(res => setCustomerSuggestions(res.data.customers || res.data || []))
+        .catch(() => setCustomerSuggestions([]))
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [customerQuery])
+
+  const handleSelectCustomer = (customer) => {
+    setSelectedCustomer(customer)
+    setFormData(prev => ({ ...prev, customerName: customer.fullName }))
+    setCustomerQuery(customer.fullName)
+    setShowCustomerDropdown(false)
+  }
+
+  const clearCustomer = () => {
+    setSelectedCustomer(null)
+    setCustomerQuery('')
+    setFormData(prev => ({ ...prev, customerName: '' }))
+  }
 
   useEffect(() => {
     // Set default type from URL params if provided
@@ -108,29 +146,6 @@ const AddTransaction = () => {
       setErrors(prev => ({ ...prev, [name]: '' }))
     }
 
-    // Customer name suggestions
-    if (name === 'customerName' && value.length > 2) {
-      // In a real app, this would fetch from API
-      // For now, we'll use some mock suggestions
-      const mockSuggestions = [
-        'John Doe',
-        'Jane Smith',
-        'ABC Store',
-        'XYZ Enterprises',
-        'Quick Mart'
-      ].filter(name => 
-        name.toLowerCase().includes(value.toLowerCase())
-      )
-      setSuggestions(mockSuggestions)
-      setShowSuggestions(mockSuggestions.length > 0)
-    } else if (name === 'customerName' && value.length <= 2) {
-      setShowSuggestions(false)
-    }
-  }
-
-  const handleCustomerSelect = (customerName) => {
-    setFormData(prev => ({ ...prev, customerName }))
-    setShowSuggestions(false)
   }
 
   const handleImageChange = (file) => {
@@ -205,6 +220,7 @@ const AddTransaction = () => {
           stockId: selectedStock._id,
           quantitySold: Number(quantitySold),
         } : {}),
+        ...(selectedCustomer ? { linkedCustomerId: selectedCustomer._id } : {}),
       }
 
       const result = isEditing
@@ -241,6 +257,8 @@ const AddTransaction = () => {
     setImagePreview(null)
     setErrors({})
     setShowSuccess(false)
+    setSelectedCustomer(null)
+    setCustomerQuery('')
   }
 
   const formatCurrency = (amount) => {
@@ -411,45 +429,88 @@ const AddTransaction = () => {
                 </div>
               )}
 
-              {/* Customer Information */}
+              {/* Customer */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="customerName" className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Customer Name *
                   </label>
-                  <div className="mt-1 relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <UserIcon className="h-5 w-5 text-gray-400" />
+
+                  {selectedCustomer ? (
+                    /* Confirmed customer card */
+                    <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-slate-900 truncate">{selectedCustomer.fullName}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          ID: <span className="font-mono font-semibold text-blue-600">{selectedCustomer.customerId}</span>
+                          {selectedCustomer.village ? ` · ${selectedCustomer.village}` : ''}
+                        </p>
+                        <p className={`text-xs font-semibold mt-0.5 ${selectedCustomer.balance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                          Wallet: {selectedCustomer.balance > 0
+                            ? `₹${selectedCustomer.balance.toLocaleString('en-IN')} due`
+                            : selectedCustomer.balance < 0
+                              ? `₹${Math.abs(selectedCustomer.balance).toLocaleString('en-IN')} advance`
+                              : 'Cleared'}
+                        </p>
+                      </div>
+                      <button type="button" onClick={clearCustomer}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
                     </div>
-                    <input
-                      id="customerName"
-                      name="customerName"
-                      type="text"
-                      className={`input-field pl-10 ${errors.customerName ? 'border-red-300' : ''}`}
-                      placeholder="Enter customer name"
-                      value={formData.customerName}
-                      onChange={handleInputChange}
-                      onFocus={() => customerName.length > 2 && setShowSuggestions(true)}
-                    />
-                  </div>
+                  ) : (
+                    /* Search input with dropdown */
+                    <div className="relative" ref={customerRef}>
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <UserIcon className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        className={`input-field pl-9 ${errors.customerName ? 'border-red-300' : ''}`}
+                        placeholder="Search by name or ID…"
+                        value={customerQuery}
+                        onChange={e => { setCustomerQuery(e.target.value); setShowCustomerDropdown(true) }}
+                        onFocus={() => setShowCustomerDropdown(true)}
+                        autoComplete="off"
+                      />
+                      {showCustomerDropdown && customerQuery.length >= 2 && (
+                        <div className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-auto">
+                          {customerSuggestions.length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-slate-400">
+                              No customers found — type to search or leave blank
+                            </div>
+                          ) : (
+                            customerSuggestions.map(c => (
+                              <button key={c._id} type="button"
+                                onMouseDown={() => handleSelectCustomer(c)}
+                                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
+                                <p className="text-sm font-semibold text-slate-900">{c.fullName}</p>
+                                <p className="text-xs text-slate-400">
+                                  ID: <span className="font-mono text-blue-500">{c.customerId}</span>
+                                  {c.village ? ` · ${c.village}` : ''}
+                                  {c.mobile ? ` · ${c.mobile}` : ''}
+                                </p>
+                              </button>
+                            ))
+                          )}
+                          {/* Allow typing name without selecting */}
+                          {customerQuery.length >= 2 && (
+                            <button type="button"
+                              onMouseDown={() => {
+                                setFormData(prev => ({ ...prev, customerName: customerQuery }))
+                                setShowCustomerDropdown(false)
+                              }}
+                              className="w-full text-left px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                              <p className="text-xs text-slate-500">Use <span className="font-semibold text-slate-700">"{customerQuery}"</span> without linking to a customer</p>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {errors.customerName && (
                     <p className="mt-1 text-sm text-red-600">{errors.customerName}</p>
-                  )}
-                  
-                  {/* Suggestions */}
-                  {showSuggestions && suggestions.length > 0 && (
-                    <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-auto">
-                      {suggestions.map((suggestion, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700"
-                          onClick={() => handleCustomerSelect(suggestion)}
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
                   )}
                 </div>
 
