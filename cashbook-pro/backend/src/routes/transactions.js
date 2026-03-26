@@ -233,6 +233,24 @@ export default async function transactionRoutes(fastify) {
 
       if (!Object.keys(updates).length) return reply.status(400).send({ error: 'No fields to update' });
 
+      // If linked customer exists and amount/type changed, adjust their wallet balance
+      if (exists.linkedCustomerId && (updates.amount !== undefined || updates.type !== undefined)) {
+        const linkedCustomer = await Customer.findById(exists.linkedCustomerId);
+        if (linkedCustomer) {
+          const oldType   = exists.type;
+          const oldAmount = exists.amount;
+          const newType   = updates.type   || oldType;
+          const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
+
+          // out → +amount (customer owes more), in → -amount (customer paid)
+          const oldEffect = oldType === 'out' ?  oldAmount : -oldAmount;
+          const newEffect = newType === 'out' ?  newAmount : -newAmount;
+          linkedCustomer.balance = linkedCustomer.balance - oldEffect + newEffect;
+          linkedCustomer.isLoan = linkedCustomer.balance > 0;
+          await linkedCustomer.save();
+        }
+      }
+
       const updated = await Transaction.findByIdAndUpdate(id, { $set: updates }, { new: true });
       return reply.send(formatTx(updated));
 

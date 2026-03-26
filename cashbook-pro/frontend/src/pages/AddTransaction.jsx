@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import useTransactions from '../hooks/useTransactions'
 import useUpload from '../hooks/useUpload'
 import api from '../services/api'
@@ -48,13 +47,21 @@ const AddTransaction = () => {
   // Stock linkage
   const [stockItems, setStockItems] = useState([])
   const [selectedStock, setSelectedStock] = useState(null)
-  const [stockSearch, setStockSearch] = useState('')
+  const [stockSearch, setStockSearch] = useState(existingTx?.stockName || '')
   const [showStockDropdown, setShowStockDropdown] = useState(false)
-  const [quantitySold, setQuantitySold] = useState('')
+  const [quantitySold, setQuantitySold] = useState(existingTx?.quantitySold || '')
 
   useEffect(() => {
     if (formData.type === 'out') {
-      api.get('/stock').then(res => setStockItems(res.data.items)).catch(() => {})
+      api.get('/stock').then(res => {
+        const items = res.data.items
+        setStockItems(items)
+        // Pre-select stock item when editing
+        if (isEditing && existingTx?.stockId) {
+          const found = items.find(i => i._id === existingTx.stockId)
+          if (found) setSelectedStock(found)
+        }
+      }).catch(() => {})
     }
   }, [formData.type])
 
@@ -87,11 +94,26 @@ const AddTransaction = () => {
   }
 
   // Customer autocomplete
-  const [customerQuery, setCustomerQuery] = useState('')
+  const [customerQuery, setCustomerQuery] = useState(existingTx?.customerName || '')
   const [customerSuggestions, setCustomerSuggestions] = useState([])
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const customerRef = React.useRef(null)
+
+  // Pre-load linked customer when editing
+  useEffect(() => {
+    if (isEditing && existingTx?.linkedCustomerId) {
+      api.get(`/customers/${existingTx.linkedCustomerId}`)
+        .then(res => setSelectedCustomer(res.data))
+        .catch(() => {}) // if customer was deleted, just leave unlinked
+    }
+  }, [])
+
+  // Quick-add new customer
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [quickForm, setQuickForm] = useState({ fullName: '', mobile: '', village: '' })
+  const [quickError, setQuickError] = useState('')
+  const [quickLoading, setQuickLoading] = useState(false)
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -120,12 +142,42 @@ const AddTransaction = () => {
     setFormData(prev => ({ ...prev, customerName: customer.fullName }))
     setCustomerQuery(customer.fullName)
     setShowCustomerDropdown(false)
+    setShowQuickAdd(false)
   }
 
   const clearCustomer = () => {
     setSelectedCustomer(null)
     setCustomerQuery('')
     setFormData(prev => ({ ...prev, customerName: '' }))
+    setShowQuickAdd(false)
+  }
+
+  const openQuickAdd = () => {
+    setQuickForm({ fullName: customerQuery, mobile: '', village: '' })
+    setQuickError('')
+    setShowQuickAdd(true)
+    setShowCustomerDropdown(false)
+  }
+
+  const handleQuickAdd = async (e) => {
+    e.preventDefault()
+    setQuickError('')
+    if (!quickForm.fullName.trim()) return setQuickError('Name is required')
+    if (!/^\d{7,15}$/.test(quickForm.mobile.replace(/\s+/g, '')))
+      return setQuickError('Enter a valid mobile number')
+    setQuickLoading(true)
+    try {
+      const res = await api.post('/customers', {
+        fullName: quickForm.fullName.trim(),
+        mobile:   quickForm.mobile.replace(/\s+/g, ''),
+        village:  quickForm.village.trim(),
+      })
+      handleSelectCustomer(res.data)
+    } catch (err) {
+      setQuickError(err.response?.data?.error || 'Failed to create customer')
+    } finally {
+      setQuickLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -474,38 +526,78 @@ const AddTransaction = () => {
                         autoComplete="off"
                       />
                       {showCustomerDropdown && customerQuery.length >= 2 && (
-                        <div className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-auto">
-                          {customerSuggestions.length === 0 ? (
-                            <div className="px-4 py-3 text-sm text-slate-400">
-                              No customers found — type to search or leave blank
-                            </div>
-                          ) : (
-                            customerSuggestions.map(c => (
-                              <button key={c._id} type="button"
-                                onMouseDown={() => handleSelectCustomer(c)}
-                                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
-                                <p className="text-sm font-semibold text-slate-900">{c.fullName}</p>
-                                <p className="text-xs text-slate-400">
-                                  ID: <span className="font-mono text-blue-500">{c.customerId}</span>
-                                  {c.village ? ` · ${c.village}` : ''}
-                                  {c.mobile ? ` · ${c.mobile}` : ''}
-                                </p>
-                              </button>
-                            ))
-                          )}
-                          {/* Allow typing name without selecting */}
-                          {customerQuery.length >= 2 && (
-                            <button type="button"
-                              onMouseDown={() => {
-                                setFormData(prev => ({ ...prev, customerName: customerQuery }))
-                                setShowCustomerDropdown(false)
-                              }}
-                              className="w-full text-left px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors">
-                              <p className="text-xs text-slate-500">Use <span className="font-semibold text-slate-700">"{customerQuery}"</span> without linking to a customer</p>
+                        <div className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-64 overflow-auto">
+                          {customerSuggestions.map(c => (
+                            <button key={c._id} type="button"
+                              onMouseDown={() => handleSelectCustomer(c)}
+                              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
+                              <p className="text-sm font-semibold text-slate-900">{c.fullName}</p>
+                              <p className="text-xs text-slate-400">
+                                ID: <span className="font-mono text-blue-500">{c.customerId}</span>
+                                {c.village ? ` · ${c.village}` : ''}
+                                {c.mobile ? ` · ${c.mobile}` : ''}
+                              </p>
                             </button>
-                          )}
+                          ))}
+                          {/* Add new customer option */}
+                          <button type="button"
+                            onMouseDown={openQuickAdd}
+                            className="w-full text-left px-4 py-2.5 bg-blue-50 hover:bg-blue-100 border-t border-slate-100 transition-colors flex items-center gap-2">
+                            <PlusCircleIcon className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                            <p className="text-sm font-semibold text-blue-700">Add "<span>{customerQuery}</span>" as new customer</p>
+                          </button>
+                          {/* Use without linking */}
+                          <button type="button"
+                            onMouseDown={() => {
+                              setFormData(prev => ({ ...prev, customerName: customerQuery }))
+                              setShowCustomerDropdown(false)
+                            }}
+                            className="w-full text-left px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <p className="text-xs text-slate-500">Use <span className="font-semibold text-slate-700">"{customerQuery}"</span> without linking</p>
+                          </button>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Quick-add new customer form */}
+                  {showQuickAdd && !selectedCustomer && (
+                    <div className="mt-2 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <p className="text-sm font-bold text-blue-800 mb-3">New Customer Details</p>
+                      <form onSubmit={handleQuickAdd} className="space-y-2.5">
+                        <input
+                          type="text"
+                          className="input-field text-sm"
+                          placeholder="Full name *"
+                          value={quickForm.fullName}
+                          onChange={e => setQuickForm(p => ({ ...p, fullName: e.target.value }))}
+                        />
+                        <input
+                          type="tel"
+                          className="input-field text-sm"
+                          placeholder="Mobile number *"
+                          value={quickForm.mobile}
+                          onChange={e => setQuickForm(p => ({ ...p, mobile: e.target.value }))}
+                        />
+                        <input
+                          type="text"
+                          className="input-field text-sm"
+                          placeholder="Village (optional)"
+                          value={quickForm.village}
+                          onChange={e => setQuickForm(p => ({ ...p, village: e.target.value }))}
+                        />
+                        {quickError && <p className="text-xs text-red-600">{quickError}</p>}
+                        <div className="flex gap-2 pt-1">
+                          <button type="submit" disabled={quickLoading}
+                            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-60 transition-colors">
+                            {quickLoading ? 'Saving…' : 'Save & Select'}
+                          </button>
+                          <button type="button" onClick={() => setShowQuickAdd(false)}
+                            className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
                     </div>
                   )}
 
