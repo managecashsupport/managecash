@@ -497,11 +497,11 @@ const AddTransaction = () => {
                           ID: <span className="font-mono font-semibold text-blue-600">{selectedCustomer.customerId}</span>
                           {selectedCustomer.village ? ` · ${selectedCustomer.village}` : ''}
                         </p>
-                        <p className={`text-xs font-semibold mt-0.5 ${selectedCustomer.balance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                        <p className={`text-xs font-semibold mt-0.5 ${selectedCustomer.balance < 0 ? 'text-red-500' : selectedCustomer.balance > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                           Wallet: {selectedCustomer.balance > 0
-                            ? `₹${selectedCustomer.balance.toLocaleString('en-IN')} due`
+                            ? `₹${selectedCustomer.balance.toLocaleString('en-IN')} advance`
                             : selectedCustomer.balance < 0
-                              ? `₹${Math.abs(selectedCustomer.balance).toLocaleString('en-IN')} advance`
+                              ? `₹${Math.abs(selectedCustomer.balance).toLocaleString('en-IN')} loan due`
                               : 'Cleared'}
                         </p>
                       </div>

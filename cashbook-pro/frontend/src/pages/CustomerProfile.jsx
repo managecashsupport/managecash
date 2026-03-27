@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import {
@@ -10,13 +10,6 @@ import {
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n || 0)
 
-const fmtDateTime = (iso) => {
-  const d = new Date(iso)
-  return d.toLocaleString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: true,
-  })
-}
 
 const CustomerProfile = () => {
   const { id } = useParams()
@@ -30,6 +23,8 @@ const CustomerProfile = () => {
   const [txnLoading, setTxnLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   // Credit / Debit modal
   const [modal, setModal] = useState(null) // 'credit' | 'debit' | null
@@ -43,7 +38,10 @@ const CustomerProfile = () => {
   const fetchPassbook = useCallback(async (pg = 1) => {
     setTxnLoading(true)
     try {
-      const res = await api.get(`/customers/${id}/passbook`, { params: { page: pg, limit: 20 } })
+      const params = { page: pg, limit: 20 }
+      if (dateFrom) params.dateFrom = dateFrom
+      if (dateTo)   params.dateTo   = dateTo
+      const res = await api.get(`/customers/${id}/passbook`, { params })
       setCustomer(res.data.customer)
       setTransactions(pg === 1 ? res.data.transactions : prev => [...prev, ...res.data.transactions])
       setTotal(res.data.total)
@@ -54,7 +52,7 @@ const CustomerProfile = () => {
       setLoading(false)
       setTxnLoading(false)
     }
-  }, [id])
+  }, [id, dateFrom, dateTo])
 
   useEffect(() => { fetchPassbook(1) }, [fetchPassbook])
 
@@ -190,11 +188,18 @@ const CustomerProfile = () => {
           {/* Balance */}
           <div className="text-right">
             <p className="text-xs text-slate-400 mb-0.5">Wallet Balance</p>
-            <p className={`text-3xl font-bold ${customer.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              {fmt(customer.balance)}
-            </p>
-            {customer.balance < 0 && (
-              <p className="text-xs text-amber-600 mt-0.5">₹{Math.abs(customer.balance).toLocaleString('en-IN')} loan outstanding</p>
+            {customer.balance > 0 ? (
+              <>
+                <p className="text-3xl font-bold text-emerald-600">₹{customer.balance.toLocaleString('en-IN')}</p>
+                <p className="text-xs text-emerald-600 mt-0.5">advance / credit</p>
+              </>
+            ) : customer.balance < 0 ? (
+              <>
+                <p className="text-3xl font-bold text-red-500">₹{Math.abs(customer.balance).toLocaleString('en-IN')}</p>
+                <p className="text-xs text-amber-600 font-semibold mt-0.5">loan outstanding</p>
+              </>
+            ) : (
+              <p className="text-3xl font-bold text-slate-400">Cleared</p>
             )}
           </div>
         </div>
@@ -214,15 +219,39 @@ const CustomerProfile = () => {
 
       {/* Passbook */}
       <div className="card overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-slate-900">Passbook</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{total} transactions</p>
+        <div className="px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="font-bold text-slate-900">Passbook</h2>
+              <p className="text-xs text-slate-400 mt-0.5">{total} transactions</p>
+            </div>
+            <button onClick={exportCSV}
+              className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+              <DocumentArrowDownIcon className="h-4 w-4" /> Export CSV
+            </button>
           </div>
-          <button onClick={exportCSV}
-            className="flex items-center gap-1.5 text-sm text-slateald-600 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
-            <DocumentArrowDownIcon className="h-4 w-4" /> Export CSV
-          </button>
+          {/* Date filter */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <CalendarIcon className="h-4 w-4 text-slate-400 flex-shrink-0" />
+            <div className="flex items-center gap-1.5">
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="input-field text-xs py-1.5 px-2 w-36" />
+              <span className="text-xs text-slate-400">to</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="input-field text-xs py-1.5 px-2 w-36" />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button onClick={() => { setDateFrom(''); setDateTo('') }}
+                className="text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1">
+                <XMarkIcon className="h-3.5 w-3.5" /> Clear
+              </button>
+            )}
+            {(dateFrom || dateTo) && (
+              <span className="text-xs bg-blue-50 text-blue-600 font-medium px-2 py-0.5 rounded-full">
+                Filtered
+              </span>
+            )}
+          </div>
         </div>
 
         {transactions.length === 0 ? (
@@ -312,8 +341,10 @@ const CustomerProfile = () => {
 
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-5 ${modal === 'credit' ? 'bg-emerald-50' : 'bg-red-50'}`}>
               <p className="text-sm font-medium text-slate-700">Customer: <span className="font-bold">{customer.fullName}</span></p>
-              <p className={`ml-auto text-sm font-bold ${customer.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                {fmt(customer.balance)}
+              <p className={`ml-auto text-sm font-bold ${customer.balance > 0 ? 'text-emerald-600' : customer.balance < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                {customer.balance > 0 ? `₹${customer.balance.toLocaleString('en-IN')} advance`
+                  : customer.balance < 0 ? `₹${Math.abs(customer.balance).toLocaleString('en-IN')} loan`
+                  : 'Cleared'}
               </p>
             </div>
 
@@ -356,7 +387,7 @@ const CustomerProfile = () => {
               {modal === 'debit' && amount && customer.balance - Number(amount) < 0 && (
                 <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2.5 rounded-xl text-sm">
                   <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
-                  Balance will go to {fmt(customer.balance - Number(amount))} — marked as loan
+                  Loan of ₹{Math.abs(customer.balance - Number(amount)).toLocaleString('en-IN')} will be pending
                 </div>
               )}
 

@@ -166,12 +166,15 @@ export default async function transactionRoutes(fastify) {
       });
 
       // Update customer wallet balance
-      // type 'out' = goods given to customer on credit → balance increases (they owe more)
-      // type 'in'  = customer paid you → balance decreases
+      // Convention (matches wallet credit/debit routes):
+      //   balance > 0 = customer has advance/credit  (isLoan = false)
+      //   balance < 0 = customer owes money (loan)   (isLoan = true)
+      // type 'out' = goods given → reduces customer's advance → balance decreases
+      // type 'in'  = customer pays → increases customer's advance → balance increases
       if (linkedCustomer) {
-        const balanceDelta = type === 'out' ? amountNum : -amountNum;
+        const balanceDelta = type === 'out' ? -amountNum : amountNum;
         linkedCustomer.balance += balanceDelta;
-        linkedCustomer.isLoan = linkedCustomer.balance > 0;
+        linkedCustomer.isLoan = linkedCustomer.balance < 0;
         await linkedCustomer.save();
       }
 
@@ -242,11 +245,11 @@ export default async function transactionRoutes(fastify) {
           const newType   = updates.type   || oldType;
           const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
 
-          // out → +amount (customer owes more), in → -amount (customer paid)
-          const oldEffect = oldType === 'out' ?  oldAmount : -oldAmount;
-          const newEffect = newType === 'out' ?  newAmount : -newAmount;
+          // out → balance decreases, in → balance increases (matches wallet convention)
+          const oldEffect = oldType === 'out' ? -oldAmount : oldAmount;
+          const newEffect = newType === 'out' ? -newAmount : newAmount;
           linkedCustomer.balance = linkedCustomer.balance - oldEffect + newEffect;
-          linkedCustomer.isLoan = linkedCustomer.balance > 0;
+          linkedCustomer.isLoan = linkedCustomer.balance < 0;
           await linkedCustomer.save();
         }
       }
