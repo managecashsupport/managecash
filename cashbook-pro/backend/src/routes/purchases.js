@@ -130,18 +130,36 @@ export default async function purchaseRoutes(fastify) {
         const newQty = Number(newItem.quantity);
         const delta  = newQty - oldQty;
 
-        if (delta !== 0) {
-          const stockItem = await Stock.findOne({ shopId, name: { $regex: `^${newItem.productName}$`, $options: 'i' } });
+        if (delta !== 0 || !oldItem) {
+          let stockItem = await Stock.findOne({ shopId, name: { $regex: `^${newItem.productName}$`, $options: 'i' } });
           if (stockItem) {
-            const quantityBefore = stockItem.quantity;
-            stockItem.quantity   = Math.max(0, stockItem.quantity + delta);
-            await stockItem.save();
+            if (delta !== 0) {
+              const quantityBefore = stockItem.quantity;
+              stockItem.quantity   = Math.max(0, stockItem.quantity + delta);
+              await stockItem.save();
+              await StockMovement.create({
+                shopId, stockId: stockItem._id, stockName: stockItem.name, stockCategory: stockItem.category,
+                type: delta > 0 ? 'restock' : 'adjustment',
+                quantity: delta,
+                quantityBefore, quantityAfter: stockItem.quantity,
+                note: `Purchase edit — ${vendor || purchase.vendor}`, recordedBy: userId,
+                purchaseId: purchase._id,
+              });
+            }
+          } else if (!oldItem) {
+            // New product added during edit — create stock entry
+            stockItem = await Stock.create({
+              shopId, name: newItem.productName.trim(),
+              category: newItem.category?.trim() || 'General',
+              quantity: Number(newItem.quantity),
+              unit: newItem.unit || 'pcs',
+              pricePerUnit: Number(newItem.pricePerUnit),
+            });
             await StockMovement.create({
               shopId, stockId: stockItem._id, stockName: stockItem.name, stockCategory: stockItem.category,
-              type: delta > 0 ? 'restock' : 'adjustment',
-              quantity: delta,
-              quantityBefore, quantityAfter: stockItem.quantity,
-              note: `Purchase edit — ${vendor || purchase.vendor}`, recordedBy: userId,
+              type: 'restock', quantity: Number(newItem.quantity),
+              quantityBefore: 0, quantityAfter: Number(newItem.quantity),
+              note: `New item from purchase edit — ${vendor || purchase.vendor}`, recordedBy: userId,
               purchaseId: purchase._id,
             });
           }
@@ -152,6 +170,16 @@ export default async function purchaseRoutes(fastify) {
           oldItem.quantity     = newQty;
           oldItem.pricePerUnit = Number(newItem.pricePerUnit) || oldItem.pricePerUnit;
           oldItem.totalPrice   = oldItem.quantity * oldItem.pricePerUnit;
+        } else {
+          // Brand new item added during edit
+          purchase.items.push({
+            productName:  newItem.productName.trim(),
+            category:     newItem.category?.trim() || 'General',
+            quantity:     newQty,
+            unit:         newItem.unit || 'pcs',
+            pricePerUnit: Number(newItem.pricePerUnit) || 0,
+            totalPrice:   newQty * (Number(newItem.pricePerUnit) || 0),
+          });
         }
       }
 
@@ -177,6 +205,7 @@ export default async function purchaseRoutes(fastify) {
     const purchase = await Purchase.findOne({ _id: request.params.id, shopId: request.user.shopId });
     if (!purchase) return reply.status(404).send({ error: 'Purchase not found' });
     if (purchase.status === 'paid') return reply.status(400).send({ error: 'Purchase already fully paid' });
+    if (Number(amount) > purchase.balance) return reply.status(400).send({ error: `Payment (₹${amount}) exceeds outstanding balance (₹${purchase.balance})` });
 
     purchase.payments.push({ amount: Number(amount), note: note || '', payMode: payMode || 'cash', date: date ? new Date(date) : new Date(), recordedBy: userId });
     purchase.paidAmount += Number(amount);

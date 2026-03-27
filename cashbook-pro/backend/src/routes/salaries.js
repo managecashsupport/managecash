@@ -35,6 +35,8 @@ export default async function salaryRoutes(fastify) {
 
     if (!staffId || !month || !year || !baseSalary)
       return reply.status(400).send({ error: 'staffId, month, year and baseSalary are required' });
+    if (Number(month) < 1 || Number(month) > 12)
+      return reply.status(400).send({ error: 'Month must be between 1 and 12' });
 
     const staff = await User.findOne({ _id: staffId, shopId, isActive: true });
     if (!staff) return reply.status(404).send({ error: 'Staff member not found' });
