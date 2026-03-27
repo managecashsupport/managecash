@@ -55,6 +55,7 @@ export default function Purchases() {
   // Edit modal
   const [editTarget, setEditTarget] = useState(null)
   const [editForm, setEditForm]     = useState({ vendor: '', gstNo: '', notes: '', date: '' })
+  const [editItems, setEditItems]   = useState([])
   const [editError, setEditError]   = useState('')
   const [editLoading, setEditLoading] = useState(false)
 
@@ -128,13 +129,18 @@ export default function Purchases() {
   const openEdit = (p) => {
     setEditTarget(p)
     setEditForm({ vendor: p.vendor, gstNo: p.gstNo || '', notes: p.notes || '', date: p.date.split('T')[0] })
+    setEditItems(p.items.map(it => ({ productName: it.productName, quantity: it.quantity, pricePerUnit: it.pricePerUnit, unit: it.unit || 'pcs', category: it.category || '' })))
     setEditError('')
   }
+  const updateEditItem = (i, field, val) => setEditItems(p => p.map((it, idx) => idx === i ? { ...it, [field]: val } : it))
+  const editTotalCalc = editItems.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.pricePerUnit) || 0), 0)
+
   const handleEdit = async (e) => {
     e.preventDefault(); setEditError('')
+    if (editItems.some(it => !it.quantity || !it.pricePerUnit)) return setEditError('Fill all item quantities and prices')
     setEditLoading(true)
     try {
-      await api.put(`/purchases/${editTarget._id}`, editForm)
+      await api.put(`/purchases/${editTarget._id}`, { ...editForm, items: editItems })
       setEditTarget(null); flash('Purchase updated'); fetchPurchases()
     } catch (err) { setEditError(err.response?.data?.error || 'Failed to update') }
     finally { setEditLoading(false) }
@@ -434,7 +440,7 @@ export default function Purchases() {
       {editTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditTarget(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-slate-900">Edit Purchase</h2>
               <button onClick={() => setEditTarget(null)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100"><XMarkIcon className="h-5 w-5" /></button>
@@ -445,6 +451,31 @@ export default function Purchases() {
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">GST No</label><input type="text" className="input-field" value={editForm.gstNo} onChange={e => setEditForm({ ...editForm, gstNo: e.target.value })} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">Date</label><input type="date" className="input-field" value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">Notes</label><input type="text" className="input-field" value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+              {/* Items */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Items</label>
+                <div className="space-y-2">
+                  {editItems.map((it, i) => (
+                    <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2">
+                      <p className="text-xs font-semibold text-slate-600">{it.productName}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Qty ({it.unit})</label>
+                          <input type="number" min="0.01" step="any" className="input-field text-sm"
+                            value={it.quantity} onChange={e => updateEditItem(i, 'quantity', e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Price/unit (₹)</label>
+                          <input type="number" min="0" step="0.01" className="input-field text-sm"
+                            value={it.pricePerUnit} onChange={e => updateEditItem(i, 'pricePerUnit', e.target.value)} />
+                        </div>
+                      </div>
+                      <p className="text-xs text-right text-slate-500">= {fmt((Number(it.quantity)||0)*(Number(it.pricePerUnit)||0))}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm font-semibold text-slate-700 text-right mt-2">New Total: {fmt(editTotalCalc)}</p>
+              </div>
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setEditTarget(null)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={editLoading} className="flex-1 btn-primary py-2.5">{editLoading ? 'Saving…' : 'Save'}</button>

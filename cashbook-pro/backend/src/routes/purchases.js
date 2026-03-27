@@ -107,16 +107,61 @@ export default async function purchaseRoutes(fastify) {
     return reply.status(201).send(purchase);
   });
 
-  // ── PUT /purchases/:id — edit details ──
+  // ── PUT /purchases/:id — edit details + items ──
   fastify.put('/:id', adminAuth, async (request, reply) => {
-    const { vendor, gstNo, notes, date } = request.body;
-    const purchase = await Purchase.findOne({ _id: request.params.id, shopId: request.user.shopId });
+    const { vendor, gstNo, notes, date, items } = request.body;
+    const { shopId, userId } = request.user;
+
+    const purchase = await Purchase.findOne({ _id: request.params.id, shopId });
     if (!purchase) return reply.status(404).send({ error: 'Purchase not found' });
 
     if (vendor) purchase.vendor = vendor.trim();
     if (gstNo  !== undefined) purchase.gstNo = gstNo.trim();
     if (notes  !== undefined) purchase.notes = notes;
     if (date)  purchase.date  = new Date(date);
+
+    // Update items + adjust stock if items provided
+    if (items && items.length > 0) {
+      for (const newItem of items) {
+        const oldItem = purchase.items.find(
+          pi => pi.productName.toLowerCase() === newItem.productName.toLowerCase()
+        );
+        const oldQty = oldItem ? Number(oldItem.quantity) : 0;
+        const newQty = Number(newItem.quantity);
+        const delta  = newQty - oldQty;
+
+        if (delta !== 0) {
+          const stockItem = await Stock.findOne({ shopId, name: { $regex: `^${newItem.productName}$`, $options: 'i' } });
+          if (stockItem) {
+            const quantityBefore = stockItem.quantity;
+            stockItem.quantity   = Math.max(0, stockItem.quantity + delta);
+            await stockItem.save();
+            await StockMovement.create({
+              shopId, stockId: stockItem._id, stockName: stockItem.name, stockCategory: stockItem.category,
+              type: delta > 0 ? 'restock' : 'adjustment',
+              quantity: delta,
+              quantityBefore, quantityAfter: stockItem.quantity,
+              note: `Purchase edit — ${vendor || purchase.vendor}`, recordedBy: userId,
+              purchaseId: purchase._id,
+            });
+          }
+        }
+
+        // Update item fields
+        if (oldItem) {
+          oldItem.quantity     = newQty;
+          oldItem.pricePerUnit = Number(newItem.pricePerUnit) || oldItem.pricePerUnit;
+          oldItem.totalPrice   = oldItem.quantity * oldItem.pricePerUnit;
+        }
+      }
+
+      // Recalculate totals
+      const newTotal    = purchase.items.reduce((s, i) => s + i.totalPrice, 0);
+      purchase.totalAmount = newTotal;
+      purchase.balance     = Math.max(0, newTotal - purchase.paidAmount);
+      purchase.status      = purchase.paidAmount === 0 ? 'pending'
+                           : purchase.balance <= 0    ? 'paid' : 'partial';
+    }
 
     await purchase.save();
     return reply.send(purchase);
