@@ -22,6 +22,7 @@ export async function buildApp() {
   await fastify.register(cors, {
     origin: process.env.FRONTEND_URL || 'https://managecash-rho.vercel.app',
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
   await fastify.register(cookie, {
     secret: process.env.COOKIE_SECRET || 'fallback-dev-secret',
@@ -44,7 +45,7 @@ export async function buildApp() {
   await fastify.register(salaryRoutes,      { prefix: '/salaries' });
   await fastify.register(expenseRoutes,     { prefix: '/expenses' });
 
-  fastify.setErrorHandler((error, request, reply) => {
+  fastify.setErrorHandler((error, _request, reply) => {
     fastify.log.error(error);
     if (error.statusCode) {
       return reply.status(error.statusCode).send({ error: error.message });
