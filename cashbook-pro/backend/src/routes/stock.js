@@ -111,8 +111,11 @@ export default async function stockRoutes(fastify) {
     const item = await Stock.findOne({ _id: request.params.id, shopId, isActive: true });
     if (!item) return reply.status(404).send({ error: 'Stock item not found' });
 
+    const newQty = item.quantity + Number(quantity);
+    if (newQty < 0) return reply.status(400).send({ error: `Cannot reduce by ${Math.abs(Number(quantity))} — only ${item.quantity} in stock` });
+
     const quantityBefore = item.quantity;
-    item.quantity += Number(quantity);
+    item.quantity = newQty;
     await item.save();
 
     await StockMovement.create({

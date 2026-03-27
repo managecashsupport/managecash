@@ -216,7 +216,7 @@ export default async function transactionRoutes(fastify) {
       const exists = await Transaction.findOne(filter);
       if (!exists) return reply.status(404).send({ error: 'Transaction not found or cannot be edited' });
 
-      const { customerName, amount, productDescription, date, payMode, imageUrl, notes } = request.body;
+      const { customerName, amount, productDescription, date, payMode, imageUrl, notes, quantitySold } = request.body;
       const updates = {};
 
       if (customerName)              updates.customerName       = customerName;
@@ -233,6 +233,30 @@ export default async function transactionRoutes(fastify) {
       }
       if (imageUrl !== undefined)    updates.imageUrl  = imageUrl || null;
       if (notes !== undefined)       updates.notes     = notes || null;
+
+      // Adjust stock if quantitySold changed on an 'out' transaction
+      if (exists.stockId && quantitySold !== undefined) {
+        const newQty = Number(quantitySold);
+        const oldQty = exists.quantitySold || 0;
+        const delta  = oldQty - newQty; // positive = stock returned, negative = more stock taken
+        if (delta !== 0) {
+          const stockItem = await Stock.findOne({ _id: exists.stockId, shopId: request.user.shopId });
+          if (stockItem) {
+            const quantityBefore = stockItem.quantity;
+            stockItem.quantity   = Math.max(0, stockItem.quantity + delta);
+            await stockItem.save();
+            await StockMovement.create({
+              shopId: request.user.shopId,
+              stockId: stockItem._id, stockName: stockItem.name, stockCategory: stockItem.category,
+              type: 'adjustment', quantity: delta,
+              quantityBefore, quantityAfter: stockItem.quantity,
+              transactionId: exists._id,
+              note: 'Transaction edit — qty adjusted', recordedBy: request.user.userId,
+            });
+          }
+        }
+        updates.quantitySold = newQty;
+      }
 
       if (!Object.keys(updates).length) return reply.status(400).send({ error: 'No fields to update' });
 
