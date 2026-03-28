@@ -50,20 +50,27 @@ export default function Salary() {
 
   const fetchSalaries = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const params = {}
       if (filterMonth)  params.month   = filterMonth
       if (filterYear)   params.year    = filterYear
       if (filterStaff)  params.staffId = filterStaff
       if (filterStatus) params.status  = filterStatus
-      const [sRes, sumRes] = await Promise.all([
-        api.get('/salaries', { params }),
-        api.get('/salaries/summary', { params: { month: filterMonth, year: filterYear } }),
-      ])
+
+      const sRes = await api.get('/salaries', { params })
       setSalaries(sRes.data)
+    } catch {
+      setError('Failed to load salaries')
+    } finally {
+      setLoading(false)
+    }
+
+    // Summary separately — failure here should not block the list
+    try {
+      const sumRes = await api.get('/salaries/summary', { params: { month: filterMonth, year: filterYear } })
       setSummary(sumRes.data)
-    } catch { setError('Failed to load salaries') }
-    finally { setLoading(false) }
+    } catch {}
   }, [filterMonth, filterYear, filterStaff, filterStatus])
 
   useEffect(() => { fetchSalaries() }, [fetchSalaries])
@@ -173,7 +180,14 @@ export default function Salary() {
       ) : salaries.length === 0 ? (
         <div className="card p-12 text-center">
           <UserIcon className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-          <p className="font-semibold text-slate-700">No salary records for this period</p>
+          <p className="font-semibold text-slate-700">
+            {filterStaff
+              ? `No salary records found for this staff member`
+              : `No salary records for this period`}
+          </p>
+          <p className="text-sm text-slate-400 mt-1">
+            {filterStaff ? 'Create a salary record to get started.' : `${MONTHS[filterMonth - 1]} ${filterYear}`}
+          </p>
           <button onClick={() => setShowAdd(true)} className="btn-primary mt-4 mx-auto"><PlusIcon className="h-4 w-4" /> Add Record</button>
         </div>
       ) : (
