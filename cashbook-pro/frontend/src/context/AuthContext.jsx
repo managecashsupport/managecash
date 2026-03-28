@@ -67,7 +67,6 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (shopId, username, password) => {
     try {
-      setIsLoading(true);
       const response = await api.post('/auth/login', {
         shopId,
         username,
@@ -77,7 +76,7 @@ export const AuthProvider = ({ children }) => {
       window.__accessToken = response.data.accessToken;
       setUser(response.data.user);
       setIsAuthenticated(true);
-      
+
       return { success: true };
     } catch (error) {
       return {
@@ -86,8 +85,6 @@ export const AuthProvider = ({ children }) => {
         code: error.response?.data?.code,
         email: error.response?.data?.email,
       };
-    } finally {
-      setIsLoading(false);
     }
   };
 
