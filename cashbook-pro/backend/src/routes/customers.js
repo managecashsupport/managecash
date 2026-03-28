@@ -1,5 +1,7 @@
 import Customer from '../models/Customer.js';
 import WalletTransaction from '../models/WalletTransaction.js';
+import Stock from '../models/Stock.js';
+import StockMovement from '../models/StockMovement.js';
 import Tenant from '../models/Tenant.js';
 import { tenantResolver } from '../middleware/tenantResolver.js';
 import { notifyCredit, notifyDebit } from '../services/whatsapp.js';
@@ -19,7 +21,7 @@ export default async function customerRoutes(fastify) {
 
   // ── GET /customers — list all (search by name/mobile/id/village) ──
   fastify.get('/', auth, async (request, reply) => {
-    const { search, village, includeInactive } = request.query;
+    const { search, village, includeInactive, createdFrom, createdTo } = request.query;
     const { shopId } = request.user;
 
     const filter = { shopId };
@@ -32,6 +34,11 @@ export default async function customerRoutes(fastify) {
         { customerId: { $regex: search, $options: 'i' } },
         { village:    { $regex: search, $options: 'i' } },
       ];
+    }
+    if (createdFrom || createdTo) {
+      filter.createdAt = {};
+      if (createdFrom) filter.createdAt.$gte = new Date(createdFrom);
+      if (createdTo)   filter.createdAt.$lte = new Date(new Date(createdTo).setHours(23, 59, 59, 999));
     }
 
     const customers = await Customer.find(filter).sort({ fullName: 1 });
@@ -143,33 +150,74 @@ export default async function customerRoutes(fastify) {
     return reply.status(201).send({ transaction: txn, customer });
   });
 
-  // ── POST /customers/:id/debit — deduct amount ──
+  // ── POST /customers/:id/debit — deduct amount (money) or give stock items ──
   fastify.post('/:id/debit', auth, async (request, reply) => {
-    const { amount, note, date, payMode } = request.body;
+    const { amount, note, date, payMode, stockId, quantity } = request.body;
     const { shopId, userId } = request.user;
-
-    if (!amount || amount <= 0) return reply.status(400).send({ error: 'Amount must be greater than 0' });
 
     const customer = await Customer.findOne({ _id: request.params.id, shopId, isActive: true });
     if (!customer) return reply.status(404).send({ error: 'Customer not found' });
 
+    let debitAmount = Number(amount);
+    let stockItem   = null;
+    let qtyNum      = 0;
+
+    if (stockId) {
+      // Stock-item debit: give goods from stock, deduct value from customer balance
+      stockItem = await Stock.findOne({ _id: stockId, shopId, isActive: true });
+      if (!stockItem) return reply.status(404).send({ error: 'Stock item not found' });
+
+      qtyNum = Number(quantity);
+      if (!qtyNum || qtyNum <= 0)           return reply.status(400).send({ error: 'Quantity must be greater than 0' });
+      if (qtyNum > stockItem.quantity)       return reply.status(400).send({ error: `Only ${stockItem.quantity} ${stockItem.unit} in stock` });
+
+      // Amount can be overridden; default = qty × pricePerUnit
+      debitAmount = amount ? Number(amount) : qtyNum * stockItem.pricePerUnit;
+      if (!debitAmount || debitAmount <= 0) return reply.status(400).send({ error: 'Calculated amount must be greater than 0' });
+    } else {
+      if (!amount || debitAmount <= 0) return reply.status(400).send({ error: 'Amount must be greater than 0' });
+    }
+
     const balanceBefore = customer.balance;
-    const balanceAfter  = balanceBefore - Number(amount);
+    const balanceAfter  = balanceBefore - debitAmount;
 
     customer.balance = balanceAfter;
     customer.isLoan  = balanceAfter < 0;
     await customer.save();
 
+    // Deduct stock and record movement if stock item given
+    if (stockItem) {
+      const quantityBefore = stockItem.quantity;
+      stockItem.quantity  -= qtyNum;
+      await stockItem.save();
+
+      await StockMovement.create({
+        shopId, stockId: stockItem._id, stockName: stockItem.name, stockCategory: stockItem.category,
+        type: 'sale', quantity: -qtyNum,
+        quantityBefore, quantityAfter: stockItem.quantity,
+        customerName: customer.fullName,
+        note: note || `Given to ${customer.fullName}`, recordedBy: userId,
+      });
+    }
+
     const txn = await WalletTransaction.create({
-      shopId, customerId: customer._id, type: 'debit',
-      amount: Number(amount), balanceBefore, balanceAfter,
-      note: note || '', payMode: payMode || 'cash', recordedBy: userId,
-      date: date ? new Date(date) : new Date(),
+      shopId, customerId: customer._id,
+      type:               stockItem ? 'sale' : 'debit',
+      amount:             debitAmount,
+      balanceBefore, balanceAfter,
+      note:               note || (stockItem ? `${stockItem.name} × ${qtyNum}` : ''),
+      payMode:            payMode || 'cash',
+      recordedBy:         userId,
+      date:               date ? new Date(date) : new Date(),
+      productDescription: stockItem ? stockItem.name : null,
+      stockName:          stockItem ? stockItem.name : null,
+      quantitySold:       stockItem ? qtyNum         : null,
+      unit:               stockItem ? stockItem.unit  : null,
     });
 
     // WhatsApp notification
     const tenant = await Tenant.findOne({ shopId });
-    notifyDebit({ mobile: customer.mobile, amount: Number(amount), balanceAfter, shopName: tenant?.shopName || shopId });
+    notifyDebit({ mobile: customer.mobile, amount: debitAmount, balanceAfter, shopName: tenant?.shopName || shopId });
 
     return reply.status(201).send({ transaction: txn, customer });
   });

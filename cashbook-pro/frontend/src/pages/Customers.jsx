@@ -4,7 +4,7 @@ import api from '../services/api'
 import {
   UserGroupIcon, UserPlusIcon, MagnifyingGlassIcon,
   PencilIcon, TrashIcon, XMarkIcon, CheckCircleIcon,
-  ExclamationTriangleIcon, PhoneIcon, MapPinIcon,
+  ExclamationTriangleIcon, PhoneIcon, MapPinIcon, CalendarIcon,
 } from '@heroicons/react/24/outline'
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n || 0)
@@ -60,6 +60,8 @@ const Customers = () => {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterVillage, setFilterVillage] = useState('')
+  const [createdFrom, setCreatedFrom] = useState('')
+  const [createdTo, setCreatedTo] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -89,8 +91,10 @@ const Customers = () => {
     try {
       setLoading(true)
       const params = {}
-      if (search)        params.search  = search
-      if (filterVillage) params.village = filterVillage
+      if (search)        params.search      = search
+      if (filterVillage) params.village     = filterVillage
+      if (createdFrom)   params.createdFrom = createdFrom
+      if (createdTo)     params.createdTo   = createdTo
       const res = await api.get('/customers', { params })
       setCustomers(res.data)
     } catch {
@@ -98,7 +102,7 @@ const Customers = () => {
     } finally {
       setLoading(false)
     }
-  }, [search, filterVillage])
+  }, [search, filterVillage, createdFrom, createdTo])
 
   useEffect(() => { fetchVillages() }, [fetchVillages])
 
@@ -211,7 +215,7 @@ const Customers = () => {
         </div>
       </div>
 
-      {/* Search + Village filter */}
+      {/* Search + Village filter + Date filter */}
       <div className="card p-4 space-y-3">
         <div className="relative">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -221,6 +225,28 @@ const Customers = () => {
             className="input-field pl-9"
           />
         </div>
+
+        {/* Date added filter */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-slate-500 flex items-center gap-1 flex-shrink-0">
+            <CalendarIcon className="h-3.5 w-3.5" /> Added:
+          </span>
+          <input type="date" value={createdFrom} onChange={e => setCreatedFrom(e.target.value)}
+            className="input-field text-xs py-1.5 px-2 w-36" />
+          <span className="text-xs text-slate-400">to</span>
+          <input type="date" value={createdTo} onChange={e => setCreatedTo(e.target.value)}
+            className="input-field text-xs py-1.5 px-2 w-36" />
+          {(createdFrom || createdTo) && (
+            <button onClick={() => { setCreatedFrom(''); setCreatedTo('') }}
+              className="text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1">
+              <XMarkIcon className="h-3.5 w-3.5" /> Clear
+            </button>
+          )}
+          {(createdFrom || createdTo) && (
+            <span className="text-xs bg-blue-50 text-blue-600 font-medium px-2 py-0.5 rounded-full">Filtered</span>
+          )}
+        </div>
+
         {villages.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-medium text-slate-500 flex items-center gap-1">

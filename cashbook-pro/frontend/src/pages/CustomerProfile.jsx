@@ -5,7 +5,8 @@ import {
   ArrowLeftIcon, PhoneIcon, MapPinIcon, IdentificationIcon,
   PlusIcon, MinusIcon, XMarkIcon, CheckCircleIcon,
   ExclamationTriangleIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-  CalendarIcon, UserIcon, DocumentArrowDownIcon,
+  CalendarIcon, UserIcon, DocumentArrowDownIcon, CubeIcon, BanknotesIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n || 0)
@@ -35,6 +36,13 @@ const CustomerProfile = () => {
   const [modalLoading, setModalLoading] = useState(false)
   const [modalError, setModalError] = useState('')
 
+  // Debit — stock-item mode
+  const [debitMode, setDebitMode] = useState('money') // 'money' | 'stock'
+  const [stockList, setStockList] = useState([])
+  const [stockSearch, setStockSearch] = useState('')
+  const [selectedStock, setSelectedStock] = useState(null)
+  const [stockQty, setStockQty] = useState('')
+
   const fetchPassbook = useCallback(async (pg = 1) => {
     setTxnLoading(true)
     try {
@@ -56,26 +64,59 @@ const CustomerProfile = () => {
 
   useEffect(() => { fetchPassbook(1) }, [fetchPassbook])
 
-  const openModal = (type) => {
+  const openModal = async (type) => {
     setModal(type)
     setAmount('')
     setNote('')
-    setPaymentDate(new Date().toISOString().split('T')[0]) // default today
+    setPaymentDate(new Date().toISOString().split('T')[0])
     setPayMode('cash')
     setModalError('')
+    setDebitMode('money')
+    setSelectedStock(null)
+    setStockSearch('')
+    setStockQty('')
+    if (type === 'debit' && stockList.length === 0) {
+      try {
+        const res = await api.get('/stock', { params: { limit: 200 } })
+        setStockList(res.data.items || res.data || [])
+      } catch {}
+    }
   }
 
   const handleTransaction = async (e) => {
     e.preventDefault()
     setModalError('')
-    if (!amount || Number(amount) <= 0) return setModalError('Enter a valid amount')
+
+    if (modal === 'debit' && debitMode === 'stock') {
+      if (!selectedStock) return setModalError('Select a stock item')
+      if (!stockQty || Number(stockQty) <= 0) return setModalError('Enter a valid quantity')
+      if (Number(stockQty) > selectedStock.quantity) return setModalError(`Only ${selectedStock.quantity} ${selectedStock.unit} in stock`)
+    } else {
+      if (!amount || Number(amount) <= 0) return setModalError('Enter a valid amount')
+    }
+
     setModalLoading(true)
     try {
-      await api.post(`/customers/${id}/${modal}`, { amount: Number(amount), note, date: paymentDate, payMode })
+      let payload
+      if (modal === 'debit' && debitMode === 'stock') {
+        payload = {
+          stockId:  selectedStock._id,
+          quantity: Number(stockQty),
+          note:     note || `${selectedStock.name} × ${stockQty}`,
+          date:     paymentDate,
+          payMode,
+        }
+      } else {
+        payload = { amount: Number(amount), note, date: paymentDate, payMode }
+      }
+
+      await api.post(`/customers/${id}/${modal}`, payload)
       setModal(null)
-      setSuccess(`${modal === 'credit' ? 'Funds added' : 'Amount deducted'} successfully`)
+      setSuccess(modal === 'credit' ? 'Funds added successfully'
+        : debitMode === 'stock' ? `${selectedStock.name} given — balance updated`
+        : 'Amount deducted successfully')
       setTimeout(() => setSuccess(''), 3000)
-      fetchPassbook(1) // refresh
+      fetchPassbook(1)
     } catch (err) {
       setModalError(err.response?.data?.error || 'Transaction failed')
     } finally {
@@ -369,13 +410,79 @@ const CustomerProfile = () => {
             )}
 
             <form onSubmit={handleTransaction} className="space-y-4">
+
+              {/* Debit mode toggle */}
+              {modal === 'debit' && (
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { setDebitMode('money'); setSelectedStock(null); setStockQty('') }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border transition-all ${debitMode === 'money' ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    <BanknotesIcon className="h-4 w-4" /> Cash / Money
+                  </button>
+                  <button type="button" onClick={() => { setDebitMode('stock'); setAmount('') }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border transition-all ${debitMode === 'stock' ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    <CubeIcon className="h-4 w-4" /> Give Items
+                  </button>
+                </div>
+              )}
+
+              {/* Stock item picker */}
+              {modal === 'debit' && debitMode === 'stock' ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Stock Item *</label>
+                    <div className="relative mb-2">
+                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <input type="text" className="input-field pl-9 text-sm" placeholder="Search item…"
+                        value={stockSearch} onChange={e => { setStockSearch(e.target.value); setSelectedStock(null) }} />
+                    </div>
+                    {!selectedStock && (
+                      <div className="border border-slate-200 rounded-xl max-h-36 overflow-auto">
+                        {stockList
+                          .filter(s => s.quantity > 0 && (!stockSearch || s.name.toLowerCase().includes(stockSearch.toLowerCase())))
+                          .map(s => (
+                          <button key={s._id} type="button"
+                            onClick={() => { setSelectedStock(s); setStockSearch(s.name) }}
+                            className="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
+                            <span className="text-sm font-medium text-slate-800">{s.name}</span>
+                            <span className="text-xs text-slate-400">{s.quantity} {s.unit} · ₹{s.pricePerUnit}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {selectedStock && (
+                      <div className="flex items-center justify-between bg-orange-50 border border-orange-200 px-3 py-2 rounded-xl">
+                        <div>
+                          <p className="text-sm font-semibold text-orange-700">{selectedStock.name}</p>
+                          <p className="text-xs text-orange-500">In stock: {selectedStock.quantity} {selectedStock.unit} · ₹{selectedStock.pricePerUnit}/{selectedStock.unit}</p>
+                        </div>
+                        <button type="button" onClick={() => { setSelectedStock(null); setStockSearch(''); setStockQty('') }}
+                          className="text-orange-400 hover:text-orange-600"><XMarkIcon className="h-4 w-4" /></button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      Quantity * {selectedStock && <span className="text-slate-400 font-normal">(max {selectedStock.quantity})</span>}
+                    </label>
+                    <input type="number" min="0.01" step="any" className="input-field" placeholder="0"
+                      value={stockQty} onChange={e => setStockQty(e.target.value)} />
+                    {selectedStock && stockQty && Number(stockQty) > 0 && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Amount: ₹{(Number(stockQty) * selectedStock.pricePerUnit).toLocaleString('en-IN')}
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Amount (₹) *</label>
+                  <input type="number" min="0.01" step="0.01" required className="input-field text-lg font-bold"
+                    placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Amount (₹) *</label>
-                <input type="number" min="0.01" step="0.01" required className="input-field text-lg font-bold"
-                  placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Payment Date *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Date *</label>
                 <input type="date" required className="input-field"
                   value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
                   max={new Date().toISOString().split('T')[0]} />
@@ -398,12 +505,18 @@ const CustomerProfile = () => {
                   value={note} onChange={e => setNote(e.target.value)} />
               </div>
 
-              {modal === 'debit' && amount && customer.balance - Number(amount) < 0 && (
-                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2.5 rounded-xl text-sm">
-                  <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
-                  Loan of ₹{Math.abs(customer.balance - Number(amount)).toLocaleString('en-IN')} will be pending
-                </div>
-              )}
+              {/* Loan warning */}
+              {modal === 'debit' && (() => {
+                const deductAmt = debitMode === 'stock' && selectedStock && stockQty
+                  ? Number(stockQty) * selectedStock.pricePerUnit
+                  : Number(amount) || 0
+                return deductAmt > 0 && customer.balance - deductAmt < 0 ? (
+                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2.5 rounded-xl text-sm">
+                    <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
+                    Loan of ₹{Math.abs(customer.balance - deductAmt).toLocaleString('en-IN')} will be pending
+                  </div>
+                ) : null
+              })()}
 
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setModal(null)}
@@ -412,7 +525,10 @@ const CustomerProfile = () => {
                   className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors ${
                     modal === 'credit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-500 hover:bg-red-600'
                   }`}>
-                  {modalLoading ? 'Processing…' : modal === 'credit' ? 'Add Funds' : 'Deduct'}
+                  {modalLoading ? 'Processing…'
+                    : modal === 'credit' ? 'Add Funds'
+                    : debitMode === 'stock' ? 'Give Items'
+                    : 'Deduct'}
                 </button>
               </div>
             </form>
