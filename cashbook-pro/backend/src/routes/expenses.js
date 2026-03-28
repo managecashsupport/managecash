@@ -1,4 +1,6 @@
 import Expense from '../models/Expense.js';
+import Transaction from '../models/Transaction.js';
+import User from '../models/User.js';
 import { tenantResolver } from '../middleware/tenantResolver.js';
 
 const adminOnly = async (request, reply) => {
@@ -43,12 +45,28 @@ export default async function expenseRoutes(fastify) {
     if (!category) return reply.status(400).send({ error: 'Category is required' });
     if (!amount || amount <= 0) return reply.status(400).send({ error: 'Amount must be greater than 0' });
 
+    const expenseDate = date ? new Date(date) : new Date();
+
     const expense = await Expense.create({
       shopId, category: category.trim(), amount: Number(amount),
       description: description?.trim() || '',
-      date: date ? new Date(date) : new Date(),
+      date: expenseDate,
       payMode: payMode || 'cash',
       recordedBy: userId,
+    });
+
+    // Mirror in Transaction so it appears in History and Dashboard
+    const staff = await User.findById(userId).lean();
+    await Transaction.create({
+      shopId, type: 'out',
+      customerName: category.trim(),
+      amount: Number(amount),
+      productDescription: description?.trim() || category.trim(),
+      date: expenseDate,
+      payMode: payMode || 'cash',
+      staffId: userId, staffName: staff?.name || '',
+      notes: `Expense: ${category.trim()}`,
+      deletedAt: null,
     });
 
     return reply.status(201).send(expense);

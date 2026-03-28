@@ -1,6 +1,7 @@
 import Salary from '../models/Salary.js';
 import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
+import Transaction from '../models/Transaction.js';
 import { tenantResolver } from '../middleware/tenantResolver.js';
 import { notifySalary } from '../services/whatsapp.js';
 
@@ -87,13 +88,28 @@ export default async function salaryRoutes(fastify) {
     if (!salary) return reply.status(404).send({ error: 'Salary record not found' });
     if (salary.status === 'paid') return reply.status(400).send({ error: 'Salary already fully paid' });
 
-    salary.payments.push({ amount: Number(amount), note: note || '', payMode: payMode || 'cash', date: date ? new Date(date) : new Date(), recordedBy: userId });
+    const payDate = date ? new Date(date) : new Date();
+
+    salary.payments.push({ amount: Number(amount), note: note || '', payMode: payMode || 'cash', date: payDate, recordedBy: userId });
     salary.paidAmount += Number(amount);
     salary.balance     = salary.netSalary - salary.paidAmount;
     salary.status      = salary.balance <= 0 ? 'paid' : 'partial';
     if (salary.balance < 0) salary.balance = 0;
 
     await salary.save();
+
+    // Mirror in Transaction so it appears in History and Dashboard
+    await Transaction.create({
+      shopId, type: 'out',
+      customerName: salary.staffName,
+      amount: Number(amount),
+      productDescription: `Salary — ${salary.staffName} (${MONTHS[salary.month - 1]} ${salary.year})`,
+      date: payDate,
+      payMode: payMode || 'cash',
+      staffId: userId, staffName: salary.staffName,
+      notes: note || '',
+      deletedAt: null,
+    });
 
     // WhatsApp notification to staff
     const staff = await User.findById(salary.staffId);

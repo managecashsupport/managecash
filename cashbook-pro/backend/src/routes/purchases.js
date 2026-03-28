@@ -1,6 +1,8 @@
 import Purchase from '../models/Purchase.js';
 import Stock from '../models/Stock.js';
 import StockMovement from '../models/StockMovement.js';
+import Transaction from '../models/Transaction.js';
+import User from '../models/User.js';
 import { tenantResolver } from '../middleware/tenantResolver.js';
 
 const adminOnly = async (request, reply) => {
@@ -207,13 +209,30 @@ export default async function purchaseRoutes(fastify) {
     if (purchase.status === 'paid') return reply.status(400).send({ error: 'Purchase already fully paid' });
     if (Number(amount) > purchase.balance) return reply.status(400).send({ error: `Payment (₹${amount}) exceeds outstanding balance (₹${purchase.balance})` });
 
-    purchase.payments.push({ amount: Number(amount), note: note || '', payMode: payMode || 'cash', date: date ? new Date(date) : new Date(), recordedBy: userId });
+    const payDate = date ? new Date(date) : new Date();
+
+    purchase.payments.push({ amount: Number(amount), note: note || '', payMode: payMode || 'cash', date: payDate, recordedBy: userId });
     purchase.paidAmount += Number(amount);
     purchase.balance     = purchase.totalAmount - purchase.paidAmount;
     purchase.status      = purchase.balance <= 0 ? 'paid' : 'partial';
     if (purchase.balance < 0) purchase.balance = 0;
 
     await purchase.save();
+
+    // Mirror in Transaction so it appears in History and Dashboard
+    const staff = await User.findById(userId).lean();
+    await Transaction.create({
+      shopId: request.user.shopId, type: 'out',
+      customerName: purchase.vendor,
+      amount: Number(amount),
+      productDescription: `Purchase payment — ${purchase.vendor}`,
+      date: payDate,
+      payMode: payMode || 'cash',
+      staffId: userId, staffName: staff?.name || '',
+      notes: note || '',
+      deletedAt: null,
+    });
+
     return reply.send(purchase);
   });
 
