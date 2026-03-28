@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return {
         success: false,
-        error: error.response?.data?.error || 'Login failed',
+        error: error.response?.data?.error || (error.request ? 'Unable to reach server — check your internet connection.' : 'Login failed. Please try again.'),
         code: error.response?.data?.code,
         email: error.response?.data?.email,
       };

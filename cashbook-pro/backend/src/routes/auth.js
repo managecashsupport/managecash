@@ -113,7 +113,7 @@ export default async function authRoutes(fastify) {
       if (shopId) {
         // Admin login: shopId provided — search within that shop
         tenant = await Tenant.findOne({ shopId });
-        if (!tenant) return reply.status(401).send({ error: 'Invalid credentials' });
+        if (!tenant) return reply.status(401).send({ error: 'Incorrect Business ID — no account found with that ID.' });
 
         if (tenant.status === 'suspended') {
           return reply.status(403).send({ error: 'Account suspended. Please contact support.' });
@@ -145,10 +145,10 @@ export default async function authRoutes(fastify) {
         }
       }
 
-      if (!user) return reply.status(401).send({ error: 'Invalid credentials' });
+      if (!user) return reply.status(401).send({ error: 'Incorrect email or username. No account found.' });
 
       const valid = await bcrypt.compare(password, user.passwordHash);
-      if (!valid) return reply.status(401).send({ error: 'Invalid credentials' });
+      if (!valid) return reply.status(401).send({ error: 'Incorrect password. Please try again.' });
 
       // Block login if email not verified (admin only — staff don't have email verification)
       if (user.role === 'admin' && !user.emailVerified) {
