@@ -34,25 +34,27 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setUnverifiedEmail('')
     setIsLoading(true)
 
-    let result
-    if (tab === 'staff') {
-      // Staff: identifier (email/phone) acts as username, shopId resolved by backend
-      result = await login('', staffForm.identifier, staffForm.password)
-    } else {
-      result = await login(adminForm.shopId, adminForm.username, adminForm.password)
-    }
+    try {
+      const result = tab === 'staff'
+        ? await login('', staffForm.identifier, staffForm.password)
+        : await login(adminForm.shopId, adminForm.username, adminForm.password)
 
-    if (result.success) {
-      navigate(from, { replace: true })
-    } else {
-      setError(result.error)
-      if (result.code === 'EMAIL_NOT_VERIFIED') {
-        setUnverifiedEmail(result.email || '')
+      if (result.success) {
+        navigate(from, { replace: true })
+      } else {
+        setError(result.error || 'Invalid credentials')
+        if (result.code === 'EMAIL_NOT_VERIFIED') {
+          setUnverifiedEmail(result.email || '')
+        }
       }
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const handleResendVerification = async () => {

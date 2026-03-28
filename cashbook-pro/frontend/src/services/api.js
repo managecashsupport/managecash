@@ -31,13 +31,17 @@ api.interceptors.response.use(
           {},
           { withCredentials: true }
         );
-        
+
         window.__accessToken = data.accessToken;
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
       } catch {
         window.__accessToken = null;
-        window.location.href = '/login';
+        // Only redirect if not already on an auth page
+        if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
       }
     }
     
