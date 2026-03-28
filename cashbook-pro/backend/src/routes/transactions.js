@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import Stock from '../models/Stock.js';
 import StockMovement from '../models/StockMovement.js';
 import Customer from '../models/Customer.js';
+import WalletTransaction from '../models/WalletTransaction.js';
 
 function fmt(n) { return parseFloat((n || 0).toFixed(2)); }
 
@@ -165,17 +166,34 @@ export default async function transactionRoutes(fastify) {
         linkedCustomerUid:linkedCustomer ? linkedCustomer.customerId : null,
       });
 
-      // Update customer wallet balance
-      // Convention (matches wallet credit/debit routes):
-      //   balance > 0 = customer has advance/credit  (isLoan = false)
-      //   balance < 0 = customer owes money (loan)   (isLoan = true)
-      // type 'out' = goods given → reduces customer's advance → balance decreases
-      // type 'in'  = customer pays → increases customer's advance → balance increases
+      // Update customer wallet balance and record in passbook
+      // Convention: balance > 0 = advance/credit, balance < 0 = loan
+      // type 'out' = goods given → reduces balance
+      // type 'in'  = customer pays → increases balance
       if (linkedCustomer) {
-        const balanceDelta = type === 'out' ? -amountNum : amountNum;
+        const balanceBefore = linkedCustomer.balance;
+        const balanceDelta  = type === 'out' ? -amountNum : amountNum;
         linkedCustomer.balance += balanceDelta;
         linkedCustomer.isLoan = linkedCustomer.balance < 0;
         await linkedCustomer.save();
+
+        await WalletTransaction.create({
+          shopId: request.user.shopId,
+          customerId: linkedCustomer._id,
+          type: type === 'out' ? 'sale' : 'payment',
+          amount: amountNum,
+          balanceBefore,
+          balanceAfter: linkedCustomer.balance,
+          note: productDescription || (stockItem ? stockItem.name : '') || '',
+          payMode: payMode || 'cash',
+          recordedBy: staff._id,
+          date: new Date(date),
+          transactionId: transaction._id,
+          productDescription: productDescription || (stockItem ? stockItem.name : null),
+          stockName:          stockItem ? stockItem.name          : null,
+          quantitySold:       stockItem ? Number(quantitySold)    : null,
+          unit:               stockItem ? stockItem.unit          : null,
+        });
       }
 
       // Deduct stock and record movement

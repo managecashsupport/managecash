@@ -260,20 +260,33 @@ const CustomerProfile = () => {
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {transactions.map((txn) => (
+            {transactions.map((txn) => {
+              const isCredit = txn.type === 'credit' || txn.type === 'payment'
+              const isSale   = txn.type === 'sale'
+              const label =
+                txn.type === 'credit'  ? 'Funds Added' :
+                txn.type === 'debit'   ? 'Amount Deducted' :
+                txn.type === 'payment' ? 'Payment Received' :
+                txn.productDescription ? `Sale — ${txn.productDescription}` : 'Sale'
+              return (
               <div key={txn._id} className="px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
                 {/* Icon */}
                 <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0
-                  ${txn.type === 'credit' ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                  {txn.type === 'credit'
+                  ${isCredit ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                  {isCredit
                     ? <ArrowTrendingUpIcon className="h-4 w-4 text-emerald-600" />
                     : <ArrowTrendingDownIcon className="h-4 w-4 text-red-500" />}
                 </div>
 
                 {/* Details */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900 capitalize">{txn.type === 'credit' ? 'Funds Added' : 'Amount Deducted'}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-slate-900">{label}</p>
+                    {isSale && txn.quantitySold && (
+                      <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">
+                        {txn.quantitySold} {txn.unit || 'pcs'}
+                      </span>
+                    )}
                     {txn.balanceAfter < 0 && (
                       <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">LOAN</span>
                     )}
@@ -296,21 +309,22 @@ const CustomerProfile = () => {
                         {txn.payMode}
                       </span>
                     )}
-                    {txn.note && <span className="text-xs text-slate-400 italic">"{txn.note}"</span>}
+                    {txn.note && !isSale && <span className="text-xs text-slate-400 italic">"{txn.note}"</span>}
                   </div>
                 </div>
 
                 {/* Amount & Balance */}
                 <div className="flex-shrink-0 text-right">
-                  <p className={`text-base font-bold ${txn.type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {txn.type === 'credit' ? '+' : '-'}{fmt(txn.amount)}
+                  <p className={`text-base font-bold ${isCredit ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {isCredit ? '+' : '-'}{fmt(txn.amount)}
                   </p>
                   <p className={`text-xs ${txn.balanceAfter >= 0 ? 'text-slate-400' : 'text-amber-600'}`}>
                     bal: {fmt(txn.balanceAfter)}
                   </p>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
