@@ -1,5 +1,7 @@
 import Customer from '../models/Customer.js';
 import WalletTransaction from '../models/WalletTransaction.js';
+import Transaction from '../models/Transaction.js';
+import User from '../models/User.js';
 import Stock from '../models/Stock.js';
 import StockMovement from '../models/StockMovement.js';
 import Tenant from '../models/Tenant.js';
@@ -136,11 +138,29 @@ export default async function customerRoutes(fastify) {
     customer.isLoan  = balanceAfter < 0;
     await customer.save();
 
+    const txnDate = date ? new Date(date) : new Date();
+
     const txn = await WalletTransaction.create({
       shopId, customerId: customer._id, type: 'credit',
       amount: Number(amount), balanceBefore, balanceAfter,
       note: note || '', payMode: payMode || 'cash', recordedBy: userId,
-      date: date ? new Date(date) : new Date(),
+      date: txnDate,
+    });
+
+    // Also create a Transaction so it appears in History (credit = cash in from customer)
+    const staff = await User.findById(userId).lean();
+    await Transaction.create({
+      shopId, type: 'in',
+      customerName: customer.fullName,
+      amount: Number(amount),
+      productDescription: `Wallet credit — ${customer.fullName}`,
+      date: txnDate,
+      payMode: payMode || 'cash',
+      staffId: userId, staffName: staff?.name || '',
+      notes: note || '',
+      linkedCustomerId: customer._id,
+      linkedCustomerUid: customer.customerId,
+      deletedAt: null,
     });
 
     // WhatsApp notification (fire and forget)
@@ -200,19 +220,45 @@ export default async function customerRoutes(fastify) {
       });
     }
 
+    const txnDate = date ? new Date(date) : new Date();
+    const debitNote = note || (stockItem ? `${stockItem.name} × ${qtyNum}` : '');
+
     const txn = await WalletTransaction.create({
       shopId, customerId: customer._id,
       type:               stockItem ? 'sale' : 'debit',
       amount:             debitAmount,
       balanceBefore, balanceAfter,
-      note:               note || (stockItem ? `${stockItem.name} × ${qtyNum}` : ''),
+      note:               debitNote,
       payMode:            payMode || 'cash',
       recordedBy:         userId,
-      date:               date ? new Date(date) : new Date(),
+      date:               txnDate,
       productDescription: stockItem ? stockItem.name : null,
       stockName:          stockItem ? stockItem.name : null,
       quantitySold:       stockItem ? qtyNum         : null,
       unit:               stockItem ? stockItem.unit  : null,
+    });
+
+    // Also create a Transaction so it appears in History (debit = cash out to customer)
+    const staff = await User.findById(userId).lean();
+    await Transaction.create({
+      shopId, type: 'out',
+      customerName: customer.fullName,
+      amount: debitAmount,
+      productDescription: stockItem
+        ? `${stockItem.name} × ${qtyNum} ${stockItem.unit} — ${customer.fullName}`
+        : `Wallet debit — ${customer.fullName}`,
+      date: txnDate,
+      payMode: payMode || 'cash',
+      staffId: userId, staffName: staff?.name || '',
+      notes: debitNote,
+      linkedCustomerId: customer._id,
+      linkedCustomerUid: customer.customerId,
+      stockId:       stockItem ? stockItem._id  : null,
+      stockName:     stockItem ? stockItem.name : null,
+      stockCategory: stockItem ? stockItem.category : null,
+      quantitySold:  stockItem ? qtyNum : null,
+      unit:          stockItem ? stockItem.unit : null,
+      deletedAt: null,
     });
 
     // WhatsApp notification
