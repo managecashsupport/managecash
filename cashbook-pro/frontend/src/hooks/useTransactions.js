@@ -1,25 +1,45 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 
+const PAGE_LIMIT = 50
+
 const useTransactions = () => {
   const [transactions, setTransactions] = useState([])
   const [summary, setSummary] = useState({})
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
 
   const fetchTransactions = useCallback(async (params = {}) => {
     try {
       setLoading(true)
       setError(null)
-      
-      const response = await api.get('/transactions', { params })
+      setPage(1)
+      const response = await api.get('/transactions', { params: { limit: PAGE_LIMIT, page: 1, ...params } })
       setTransactions(response.data.data || [])
+      setTotal(response.data.total || 0)
       setSummary(response.data.summary || {})
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch transactions')
       console.error('Error fetching transactions:', err)
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  const fetchMoreTransactions = useCallback(async (params = {}, nextPage) => {
+    try {
+      setLoadingMore(true)
+      const response = await api.get('/transactions', { params: { limit: PAGE_LIMIT, page: nextPage, ...params } })
+      setTransactions(prev => [...prev, ...(response.data.data || [])])
+      setTotal(response.data.total || 0)
+      setPage(nextPage)
+    } catch (err) {
+      console.error('Error fetching more transactions:', err)
+    } finally {
+      setLoadingMore(false)
     }
   }, [])
 
@@ -145,8 +165,12 @@ const useTransactions = () => {
     transactions,
     summary,
     loading,
+    loadingMore,
     error,
+    total,
+    page,
     fetchTransactions,
+    fetchMoreTransactions,
     createTransaction,
     updateTransaction,
     deleteTransaction,

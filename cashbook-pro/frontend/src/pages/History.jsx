@@ -26,7 +26,10 @@ import SearchBar from '../components/SearchBar'
 const History = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { transactions, summary, loading, error, fetchTransactions, deleteTransaction, exportTransactions } = useTransactions()
+  const { transactions, summary, loading, loadingMore, error, total, page, fetchTransactions, fetchMoreTransactions, deleteTransaction, exportTransactions } = useTransactions()
+
+  // track active filters for load-more
+  const [activeParams, setActiveParams] = useState({})
 
   const [staffList, setStaffList] = useState([])
   const [filters, setFilters] = useState({
@@ -61,7 +64,7 @@ const History = () => {
   // Apply filters
   useEffect(() => {
     const params = {}
-    
+
     if (debouncedSearch) params.search = debouncedSearch
     if (filters.type !== 'all') params.type = filters.type
     if (filters.payMode !== 'all') params.payMode = filters.payMode
@@ -69,6 +72,7 @@ const History = () => {
     if (filters.dateFrom) params.date_from = filters.dateFrom
     if (filters.dateTo) params.date_to = filters.dateTo
 
+    setActiveParams(params)
     fetchTransactions(params)
   }, [debouncedSearch, filters.type, filters.payMode, filters.staffId, filters.dateFrom, filters.dateTo])
 
@@ -527,7 +531,7 @@ const History = () => {
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions found</h3>
                   <p className="text-gray-600 mb-6">
-                    {filters.search || filters.type !== 'all' || filters.payMode !== 'all' 
+                    {filters.search || filters.type !== 'all' || filters.payMode !== 'all'
                       ? "Try adjusting your search or filters to find what you're looking for."
                       : "No transactions have been recorded yet. Start by adding your first transaction."}
                   </p>
@@ -537,6 +541,19 @@ const History = () => {
                   >
                     <PlusCircleIcon className="h-5 w-5 mr-2" />
                     Add Your First Transaction
+                  </button>
+                </div>
+              )}
+
+              {/* Load More */}
+              {transactions.length < total && (
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={() => fetchMoreTransactions(activeParams, page + 1)}
+                    disabled={loadingMore}
+                    className="px-6 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Loading…' : `Load more (${total - transactions.length} remaining)`}
                   </button>
                 </div>
               )}
