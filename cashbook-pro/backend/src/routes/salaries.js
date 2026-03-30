@@ -108,6 +108,7 @@ export default async function salaryRoutes(fastify) {
       payMode: payMode || 'cash',
       staffId: userId, staffName: salary.staffName,
       notes: note || '',
+      sourceId: salary._id, sourceType: 'salary',
       deletedAt: null,
     });
 
@@ -132,6 +133,13 @@ export default async function salaryRoutes(fastify) {
   fastify.delete('/:id', adminAuth, async (request, reply) => {
     const salary = await Salary.findOneAndDelete({ _id: request.params.id, shopId: request.user.shopId });
     if (!salary) return reply.status(404).send({ error: 'Salary record not found' });
+
+    // Soft-delete all mirror Transactions created from payments on this salary record
+    await Transaction.updateMany(
+      { sourceId: salary._id, sourceType: 'salary', deletedAt: null },
+      { $set: { deletedAt: new Date() } }
+    );
+
     return reply.send({ success: true });
   });
 

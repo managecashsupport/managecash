@@ -23,6 +23,9 @@ const transactionSchema = new mongoose.Schema({
   // Customer wallet linkage (optional)
   linkedCustomerId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
   linkedCustomerUid:  { type: String, default: null }, // human-readable customerId e.g. "C001"
+  // Source linkage — for mirror transactions created from expenses / salary / purchases
+  sourceId:           { type: mongoose.Schema.Types.ObjectId, default: null },
+  sourceType:         { type: String, enum: ['expense', 'salary', 'purchase', null], default: null },
 }, { timestamps: true });
 
 export default mongoose.model('Transaction', transactionSchema);

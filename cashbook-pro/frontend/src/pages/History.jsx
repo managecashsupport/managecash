@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import useTransactions from '../hooks/useTransactions'
@@ -20,8 +20,9 @@ import {
   PencilIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
-import TransactionCard from '../components/TransactionCard'
 import SearchBar from '../components/SearchBar'
+import useDeleteWithUndo from '../hooks/useDeleteWithUndo'
+import UndoToast from '../components/UndoToast'
 
 const History = () => {
   const navigate = useNavigate()
@@ -43,7 +44,8 @@ const History = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [deleteError, setDeleteError] = useState('')
-  const [confirmTx, setConfirmTx] = useState(null) // transaction pending delete confirmation
+  const [removedIds, setRemovedIds] = useState(new Set())
+  const { scheduleDelete, undoPending, undoCountdown, cancelUndo } = useDeleteWithUndo()
 
   // Fetch staff list for filter (admin only)
   useEffect(() => {
@@ -92,10 +94,17 @@ const History = () => {
     setDebouncedSearch('')
   }
 
-  const handleDelete = async (id) => {
-    setDeleteError('')
-    const result = await deleteTransaction(id)
-    if (!result.success) setDeleteError(result.error || 'Failed to delete transaction')
+  const handleDelete = (transaction) => {
+    const id = transaction.id || transaction._id
+    setRemovedIds(prev => new Set([...prev, id]))
+    scheduleDelete({
+      label: `Entry deleted — ${transaction.customerName}`,
+      onConfirm: async () => {
+        const result = await deleteTransaction(id)
+        if (!result.success) setDeleteError(result.error || 'Failed to delete entry')
+      },
+      onUndo: () => setRemovedIds(prev => { const s = new Set(prev); s.delete(id); return s }),
+    })
   }
 
   const handleExport = async () => {
@@ -126,7 +135,7 @@ const History = () => {
   }
 
   // Filter transactions based on search (client-side for instant feedback)
-  const filteredTransactions = transactions.filter(transaction => {
+  const filteredTransactions = transactions.filter(transaction => !removedIds.has(transaction.id || transaction._id)).filter(transaction => {
     const matchesSearch = !debouncedSearch || 
       transaction.customerName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       (transaction.productDescription && transaction.productDescription.toLowerCase().includes(debouncedSearch.toLowerCase()))
@@ -396,10 +405,10 @@ const History = () => {
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Transactions ({filteredTransactions.length})
+                  Entries ({filteredTransactions.length})
                 </h2>
                 <div className="flex items-center space-x-4 text-sm text-gray-600">
-                  <span>{filters.type !== 'all' && `${filters.type === 'in' ? 'Cash In' : 'Cash Out'} • `}</span>
+                  <span>{filters.type !== 'all' && `${filters.type === 'in' ? 'Payment In' : 'Payment Out'} • `}</span>
                   <span>{filters.payMode !== 'all' && `${filters.payMode} • `}</span>
                   <span>{(filters.dateFrom || filters.dateTo) && `${filters.dateFrom ? formatDate(filters.dateFrom) : 'Start'} - ${filters.dateTo ? formatDate(filters.dateTo) : 'Today'}`}</span>
                 </div>
@@ -509,9 +518,9 @@ const History = () => {
                               </button>
                               
                               <button
-                                onClick={() => setConfirmTx(transaction)}
+                                onClick={() => handleDelete(transaction)}
                                 className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Delete Transaction"
+                                title="Delete Entry"
                               >
                                 <TrashIcon className="h-4 w-4" />
                               </button>
@@ -563,60 +572,7 @@ const History = () => {
       </div>
     </div>
 
-    {/* ── Delete Confirmation Modal ── */}
-
-    {confirmTx && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmTx(null)} />
-        <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm z-10">
-          <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
-            <TrashIcon className="h-6 w-6 text-red-500" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 text-center">Delete Transaction?</h3>
-          <p className="text-sm text-slate-500 text-center mt-1 mb-4">This action cannot be undone.</p>
-
-          {/* Transaction details */}
-          <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 mb-5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Customer</span>
-              <span className="font-semibold text-slate-800">{confirmTx.customerName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Amount</span>
-              <span className={`font-bold ${confirmTx.type === 'in' ? 'text-emerald-600' : 'text-red-600'}`}>
-                {confirmTx.type === 'in' ? '+' : '-'}₹{Number(confirmTx.amount).toLocaleString('en-IN')}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Date</span>
-              <span className="text-slate-700">{new Date(confirmTx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Staff</span>
-              <span className="text-slate-700">{confirmTx.staffName}</span>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setConfirmTx(null)}
-              className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                handleDelete(confirmTx.id || confirmTx._id)
-                setConfirmTx(null)
-              }}
-              className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
+    <UndoToast undoPending={undoPending} undoCountdown={undoCountdown} onUndo={cancelUndo} />
     </>
   )
 }

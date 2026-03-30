@@ -6,6 +6,8 @@ import {
   CheckCircleIcon, ExclamationTriangleIcon, MagnifyingGlassIcon,
   ArrowPathIcon, ChartBarIcon, FunnelIcon,
 } from '@heroicons/react/24/outline'
+import useDeleteWithUndo from '../hooks/useDeleteWithUndo'
+import UndoToast from '../components/UndoToast'
 import { Bar, Pie } from 'react-chartjs-2'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
@@ -51,7 +53,8 @@ const Stock = () => {
   const [restockNote, setRestockNote] = useState('')
   const [restockLoading, setRestockLoading] = useState(false)
 
-  const [deleteId, setDeleteId] = useState(null)
+  const [removedIds, setRemovedIds] = useState(new Set())
+  const { scheduleDelete, undoPending, undoCountdown, cancelUndo } = useDeleteWithUndo()
 
   // Analytics
   const [analytics, setAnalytics] = useState(null)
@@ -146,11 +149,16 @@ const Stock = () => {
   }
 
   // ── Delete ──
-  const handleDelete = async (id) => {
-    try {
-      await api.delete(`/stock/${id}`)
-      setDeleteId(null); flash('Item removed'); fetchItems(); fetchCategories()
-    } catch (err) { setDeleteId(null); setError(err.response?.data?.error || 'Failed to remove item') }
+  const handleDelete = (item) => {
+    setRemovedIds(prev => new Set([...prev, item._id]))
+    scheduleDelete({
+      label: `Item removed — ${item.name}`,
+      onConfirm: async () => {
+        try { await api.delete(`/stock/${item._id}`); fetchItems(); fetchCategories() }
+        catch (err) { setError(err.response?.data?.error || 'Failed to remove item'); setRemovedIds(prev => { const s = new Set(prev); s.delete(item._id); return s }) }
+      },
+      onUndo: () => setRemovedIds(prev => { const s = new Set(prev); s.delete(item._id); return s }),
+    })
   }
 
   // ── Analytics chart data ──
@@ -266,7 +274,7 @@ const Stock = () => {
                 <div key={cat}>
                   <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">{cat}</h2>
                   <div className="space-y-2">
-                    {catItems.map(item => (
+                    {catItems.filter(item => !removedIds.has(item._id)).map(item => (
                       <div key={item._id} className={`card p-4 flex items-center gap-4 ${item.quantity <= LOW ? 'border-amber-200 bg-amber-50/30' : ''}`}>
                         <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${item.quantity <= LOW ? 'bg-amber-100' : 'bg-blue-50'}`}>
                           <ArchiveBoxIcon className={`h-5 w-5 ${item.quantity <= LOW ? 'text-amber-500' : 'text-blue-500'}`} />
@@ -293,7 +301,7 @@ const Stock = () => {
                             <PencilIcon className="h-4 w-4" />
                           </button>
                           {isAdmin && (
-                            <button onClick={() => setDeleteId(item._id)}
+                            <button onClick={() => handleDelete(item)}
                               className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove">
                               <TrashIcon className="h-4 w-4" />
                             </button>
@@ -534,21 +542,7 @@ const Stock = () => {
         </div>
       )}
 
-      {/* ── Delete Confirm ── */}
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteId(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4"><TrashIcon className="h-6 w-6 text-red-500" /></div>
-            <h3 className="text-lg font-bold text-slate-900">Remove Item?</h3>
-            <p className="text-sm text-slate-500 mt-1">Movement history will be preserved.</p>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setDeleteId(null)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={() => handleDelete(deleteId)} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors">Remove</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <UndoToast undoPending={undoPending} undoCountdown={undoCountdown} onUndo={cancelUndo} />
     </div>
   )
 }

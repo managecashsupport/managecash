@@ -139,17 +139,10 @@ export default async function customerRoutes(fastify) {
     await customer.save();
 
     const txnDate = date ? new Date(date) : new Date();
-
-    const txn = await WalletTransaction.create({
-      shopId, customerId: customer._id, type: 'credit',
-      amount: Number(amount), balanceBefore, balanceAfter,
-      note: note || '', payMode: payMode || 'cash', recordedBy: userId,
-      date: txnDate,
-    });
-
-    // Also create a Transaction so it appears in History (credit = cash in from customer)
     const staff = await User.findById(userId).lean();
-    await Transaction.create({
+
+    // Create mirror Transaction first so we can link it in WalletTransaction
+    const mirrorTx = await Transaction.create({
       shopId, type: 'in',
       customerName: customer.fullName,
       amount: Number(amount),
@@ -161,6 +154,14 @@ export default async function customerRoutes(fastify) {
       linkedCustomerId: customer._id,
       linkedCustomerUid: customer.customerId,
       deletedAt: null,
+    });
+
+    const txn = await WalletTransaction.create({
+      shopId, customerId: customer._id, type: 'credit',
+      amount: Number(amount), balanceBefore, balanceAfter,
+      note: note || '', payMode: payMode || 'cash', recordedBy: userId,
+      date: txnDate,
+      transactionId: mirrorTx._id,
     });
 
     // WhatsApp notification (fire and forget)
@@ -222,25 +223,10 @@ export default async function customerRoutes(fastify) {
 
     const txnDate = date ? new Date(date) : new Date();
     const debitNote = note || (stockItem ? `${stockItem.name} × ${qtyNum}` : '');
-
-    const txn = await WalletTransaction.create({
-      shopId, customerId: customer._id,
-      type:               stockItem ? 'sale' : 'debit',
-      amount:             debitAmount,
-      balanceBefore, balanceAfter,
-      note:               debitNote,
-      payMode:            payMode || 'cash',
-      recordedBy:         userId,
-      date:               txnDate,
-      productDescription: stockItem ? stockItem.name : null,
-      stockName:          stockItem ? stockItem.name : null,
-      quantitySold:       stockItem ? qtyNum         : null,
-      unit:               stockItem ? stockItem.unit  : null,
-    });
-
-    // Also create a Transaction so it appears in History (debit = cash out to customer)
     const staff = await User.findById(userId).lean();
-    await Transaction.create({
+
+    // Create mirror Transaction first so we can link it in WalletTransaction
+    const mirrorTx = await Transaction.create({
       shopId, type: 'out',
       customerName: customer.fullName,
       amount: debitAmount,
@@ -259,6 +245,22 @@ export default async function customerRoutes(fastify) {
       quantitySold:  stockItem ? qtyNum : null,
       unit:          stockItem ? stockItem.unit : null,
       deletedAt: null,
+    });
+
+    const txn = await WalletTransaction.create({
+      shopId, customerId: customer._id,
+      type:               stockItem ? 'sale' : 'debit',
+      amount:             debitAmount,
+      balanceBefore, balanceAfter,
+      note:               debitNote,
+      payMode:            payMode || 'cash',
+      recordedBy:         userId,
+      date:               txnDate,
+      productDescription: stockItem ? stockItem.name : null,
+      stockName:          stockItem ? stockItem.name : null,
+      quantitySold:       stockItem ? qtyNum         : null,
+      unit:               stockItem ? stockItem.unit  : null,
+      transactionId:      mirrorTx._id,
     });
 
     // WhatsApp notification

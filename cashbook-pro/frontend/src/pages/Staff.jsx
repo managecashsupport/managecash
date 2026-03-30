@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -7,6 +7,8 @@ import {
   ClipboardDocumentIcon, ClockIcon, BanknotesIcon, PlusIcon,
   ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
+import useDeleteWithUndo from '../hooks/useDeleteWithUndo'
+import UndoToast from '../components/UndoToast'
 
 const fmt     = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0)
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -34,7 +36,8 @@ const Staff = () => {
   const [editForm, setEditForm]             = useState({ name: '', role: 'staff' })
   const [editError, setEditError]           = useState('')
   const [editSubmitting, setEditSubmitting] = useState(false)
-  const [deleteId, setDeleteId]             = useState(null)
+  const [removedStaffIds, setRemovedStaffIds] = useState(new Set())
+  const { scheduleDelete, undoPending, undoCountdown, cancelUndo } = useDeleteWithUndo()
 
   // ── Salary panel (per staff) ──
   const [salaryPanelId, setSalaryPanelId]   = useState(null)
@@ -106,11 +109,16 @@ const Staff = () => {
     } catch (err) { setEditError(err.response?.data?.error || 'Failed to update') }
     finally { setEditSubmitting(false) }
   }
-  const handleDelete = async (id) => {
-    try {
-      await api.delete(`/users/${id}`)
-      setDeleteId(null); flash('Staff member removed'); fetchStaff()
-    } catch (err) { setError(err.response?.data?.error || 'Failed to remove') }
+  const handleDelete = (member) => {
+    setRemovedStaffIds(prev => new Set([...prev, member.id]))
+    scheduleDelete({
+      label: `${member.name} removed from staff`,
+      onConfirm: async () => {
+        try { await api.delete(`/users/${member.id}`); fetchStaff() }
+        catch (err) { setError(err.response?.data?.error || 'Failed to remove'); setRemovedStaffIds(prev => { const s = new Set(prev); s.delete(member.id); return s }) }
+      },
+      onUndo: () => setRemovedStaffIds(prev => { const s = new Set(prev); s.delete(member.id); return s }),
+    })
   }
 
   // ── Salary panel ───────────────────────────────────────────
@@ -193,13 +201,18 @@ const Staff = () => {
   }
 
   // Delete salary record
-  const [deleteSalId, setDeleteSalId] = useState(null)
-  const handleDeleteSal = async () => {
-    try {
-      await api.delete(`/salaries/${deleteSalId}`)
-      setDeleteSalId(null); flash('Deleted')
-      fetchPanelSalaries(salaryPanelId, panelMonth, panelYear)
-    } catch { setError('Failed to delete') }
+  const [removedSalIds, setRemovedSalIds] = useState(new Set())
+  const { scheduleDelete: scheduleDeleteSal, undoPending: salUndoPending, undoCountdown: salUndoCountdown, cancelUndo: cancelSalUndo } = useDeleteWithUndo()
+  const handleDeleteSal = (s) => {
+    setRemovedSalIds(prev => new Set([...prev, s._id]))
+    scheduleDeleteSal({
+      label: `Salary record deleted — ${s.staffName} ${MONTHS[s.month - 1]} ${s.year}`,
+      onConfirm: async () => {
+        try { await api.delete(`/salaries/${s._id}`); fetchPanelSalaries(salaryPanelId, panelMonth, panelYear) }
+        catch { setError('Failed to delete salary record'); setRemovedSalIds(prev => { const n = new Set(prev); n.delete(s._id); return n }) }
+      },
+      onUndo: () => setRemovedSalIds(prev => { const n = new Set(prev); n.delete(s._id); return n }),
+    })
   }
 
   return (
@@ -267,7 +280,7 @@ const Staff = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {staff.map((member) => (
+          {staff.filter(m => !removedStaffIds.has(m.id)).map((member) => (
             <div key={member.id} className="card overflow-hidden">
               {/* Staff row */}
               <div className="p-5 flex items-center gap-4">
@@ -321,7 +334,7 @@ const Staff = () => {
                         className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit">
                         <PencilIcon className="h-4 w-4" />
                       </button>
-                      <button onClick={() => setDeleteId(member.id)}
+                      <button onClick={() => handleDelete(member)}
                         className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove">
                         <TrashIcon className="h-4 w-4" />
                       </button>
@@ -359,7 +372,7 @@ const Staff = () => {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {panelSalaries.map(s => (
+                      {panelSalaries.filter(s => !removedSalIds.has(s._id)).map(s => (
                         <div key={s._id} className={`bg-white rounded-xl overflow-hidden border border-slate-200 ${STATUS_BORDER[s.status]}`}>
                           <div className="px-4 py-3 flex items-center gap-3">
                             <div className="flex-1 min-w-0">
@@ -387,7 +400,7 @@ const Staff = () => {
                               <button onClick={() => openEditSal(s)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => setDeleteSalId(s._id)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                              <button onClick={() => handleDeleteSal(s)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                               {s.payments.length > 0 && (
@@ -521,21 +534,7 @@ const Staff = () => {
         </div>
       )}
 
-      {/* ── Delete Staff Confirm ── */}
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteId(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4"><TrashIcon className="h-6 w-6 text-red-500" /></div>
-            <h3 className="text-lg font-bold text-slate-900">Remove Member?</h3>
-            <p className="text-sm text-slate-500 mt-1">Their account will be deactivated. All their entries remain.</p>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setDeleteId(null)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={() => handleDelete(deleteId)} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold">Remove</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <UndoToast undoPending={undoPending} undoCountdown={undoCountdown} onUndo={cancelUndo} />
 
       {/* ── Add Salary Modal ── */}
       {showAddSal && (
@@ -649,20 +648,7 @@ const Staff = () => {
         </div>
       )}
 
-      {/* ── Delete Salary Confirm ── */}
-      {deleteSalId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteSalId(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4"><TrashIcon className="h-6 w-6 text-red-500" /></div>
-            <h3 className="text-lg font-bold text-slate-900">Delete Salary Record?</h3>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setDeleteSalId(null)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={handleDeleteSal} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <UndoToast undoPending={salUndoPending} undoCountdown={salUndoCountdown} onUndo={cancelSalUndo} />
     </div>
   )
 }

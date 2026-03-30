@@ -305,14 +305,48 @@ export default async function transactionRoutes(fastify) {
     }
   });
 
-  // DELETE /transactions/:id  (soft delete)
+  // DELETE /transactions/:id  (soft delete + reverse side-effects)
   fastify.delete('/:id', { preHandler: [tenantResolver, roleCheck(['admin'])] }, async (request, reply) => {
     try {
-      const result = await Transaction.findOneAndUpdate(
-        { _id: request.params.id, shopId: request.user.shopId, deletedAt: null },
-        { $set: { deletedAt: new Date() } }
-      );
-      if (!result) return reply.status(404).send({ error: 'Transaction not found' });
+      const tx = await Transaction.findOne({ _id: request.params.id, shopId: request.user.shopId, deletedAt: null });
+      if (!tx) return reply.status(404).send({ error: 'Transaction not found' });
+
+      // 1. Reverse customer wallet balance if this transaction was linked to a customer
+      if (tx.linkedCustomerId) {
+        const customer = await Customer.findById(tx.linkedCustomerId);
+        if (customer) {
+          // Reverse the original effect: out reduced balance, in increased it
+          const reversal = tx.type === 'out' ? tx.amount : -tx.amount;
+          customer.balance += reversal;
+          customer.isLoan = customer.balance < 0;
+          await customer.save();
+        }
+        // Remove the linked WalletTransaction passbook entry
+        await WalletTransaction.deleteOne({ transactionId: tx._id });
+      }
+
+      // 2. Restore stock if this transaction deducted stock
+      if (tx.stockId && tx.quantitySold) {
+        const stockItem = await Stock.findById(tx.stockId);
+        if (stockItem) {
+          const quantityBefore = stockItem.quantity;
+          stockItem.quantity += tx.quantitySold;
+          await stockItem.save();
+          await StockMovement.create({
+            shopId: tx.shopId,
+            stockId: stockItem._id, stockName: stockItem.name, stockCategory: stockItem.category,
+            type: 'adjustment', quantity: tx.quantitySold,
+            quantityBefore, quantityAfter: stockItem.quantity,
+            transactionId: tx._id,
+            note: 'Transaction deleted — stock restored', recordedBy: request.user.userId,
+          });
+        }
+      }
+
+      // 3. Soft-delete the transaction itself
+      tx.deletedAt = new Date();
+      await tx.save();
+
       return reply.send({ success: true });
     } catch (err) {
       console.error('Delete transaction error:', err);

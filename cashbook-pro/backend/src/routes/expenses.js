@@ -66,6 +66,7 @@ export default async function expenseRoutes(fastify) {
       payMode: payMode || 'cash',
       staffId: userId, staffName: staff?.name || '',
       notes: `Expense: ${category.trim()}`,
+      sourceId: expense._id, sourceType: 'expense',
       deletedAt: null,
     });
 
@@ -85,6 +86,21 @@ export default async function expenseRoutes(fastify) {
     if (payMode)     expense.payMode     = payMode;
 
     await expense.save();
+
+    // Keep mirror Transaction in sync
+    const mirrorUpdates = {};
+    if (category)              mirrorUpdates.customerName       = expense.category;
+    if (amount)                mirrorUpdates.amount             = expense.amount;
+    if (description !== undefined) mirrorUpdates.productDescription = expense.description || expense.category;
+    if (date)                  mirrorUpdates.date               = expense.date;
+    if (payMode)               mirrorUpdates.payMode            = expense.payMode;
+    if (Object.keys(mirrorUpdates).length) {
+      await Transaction.findOneAndUpdate(
+        { sourceId: expense._id, sourceType: 'expense', deletedAt: null },
+        { $set: mirrorUpdates }
+      );
+    }
+
     return reply.send(expense);
   });
 
@@ -92,6 +108,13 @@ export default async function expenseRoutes(fastify) {
   fastify.delete('/:id', adminAuth, async (request, reply) => {
     const expense = await Expense.findOneAndDelete({ _id: request.params.id, shopId: request.user.shopId });
     if (!expense) return reply.status(404).send({ error: 'Expense not found' });
+
+    // Soft-delete the mirror Transaction so it vanishes from History and Dashboard
+    await Transaction.findOneAndUpdate(
+      { sourceId: expense._id, sourceType: 'expense', deletedAt: null },
+      { $set: { deletedAt: new Date() } }
+    );
+
     return reply.send({ success: true });
   });
 

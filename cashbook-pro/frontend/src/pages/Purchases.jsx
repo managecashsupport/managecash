@@ -5,6 +5,8 @@ import {
   CheckCircleIcon, ExclamationTriangleIcon, BanknotesIcon,
   MagnifyingGlassIcon, FunnelIcon, ClockIcon,
 } from '@heroicons/react/24/outline'
+import useDeleteWithUndo from '../hooks/useDeleteWithUndo'
+import UndoToast from '../components/UndoToast'
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n || 0)
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -75,7 +77,8 @@ export default function Purchases() {
 
   // Detail expand
   const [expanded, setExpanded]     = useState(null)
-  const [deleteId, setDeleteId]     = useState(null)
+  const [removedIds, setRemovedIds] = useState(new Set())
+  const { scheduleDelete, undoPending, undoCountdown, cancelUndo } = useDeleteWithUndo()
 
   const fetchPurchases = useCallback(async () => {
     setLoading(true)
@@ -166,11 +169,16 @@ export default function Purchases() {
   }
 
   // ── Delete ──
-  const handleDelete = async () => {
-    try {
-      await api.delete(`/purchases/${deleteId}`)
-      setDeleteId(null); flash('Purchase deleted'); fetchPurchases()
-    } catch { setError('Failed to delete') }
+  const handleDelete = (p) => {
+    setRemovedIds(prev => new Set([...prev, p._id]))
+    scheduleDelete({
+      label: `Purchase deleted — ${p.vendor}`,
+      onConfirm: async () => {
+        try { await api.delete(`/purchases/${p._id}`); fetchPurchases() }
+        catch { setError('Failed to delete purchase') }
+      },
+      onUndo: () => setRemovedIds(prev => { const s = new Set(prev); s.delete(p._id); return s }),
+    })
   }
 
   return (
@@ -244,7 +252,7 @@ export default function Purchases() {
         </div>
       ) : (
         <div className="space-y-3">
-          {purchases.map(p => (
+          {purchases.filter(p => !removedIds.has(p._id)).map(p => (
             <div key={p._id} className={`card overflow-hidden ${STATUS_BORDER[p.status]}`}>
               <div className="p-4 flex items-center gap-4 cursor-pointer" onClick={() => setExpanded(expanded === p._id ? null : p._id)}>
                 <div className="flex-1 min-w-0">
@@ -272,7 +280,7 @@ export default function Purchases() {
                   <button onClick={() => openEdit(p)} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit">
                     <PencilIcon className="h-4 w-4" />
                   </button>
-                  <button onClick={() => setDeleteId(p._id)} className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                  <button onClick={() => handleDelete(p)} className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
                     <TrashIcon className="h-4 w-4" />
                   </button>
                 </div>
@@ -541,21 +549,7 @@ export default function Purchases() {
         </div>
       )}
 
-      {/* ── Delete Confirm ── */}
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteId(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4"><TrashIcon className="h-6 w-6 text-red-500" /></div>
-            <h3 className="text-lg font-bold text-slate-900">Delete Purchase?</h3>
-            <p className="text-sm text-slate-500 mt-1">This will not reverse any stock changes.</p>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setDeleteId(null)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={handleDelete} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <UndoToast undoPending={undoPending} undoCountdown={undoCountdown} onUndo={cancelUndo} />
     </div>
   )
 }

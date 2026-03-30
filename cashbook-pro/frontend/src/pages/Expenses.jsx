@@ -4,6 +4,8 @@ import {
   ReceiptPercentIcon, PlusIcon, PencilIcon, TrashIcon, XMarkIcon,
   CheckCircleIcon, ExclamationTriangleIcon, FunnelIcon,
 } from '@heroicons/react/24/outline'
+import useDeleteWithUndo from '../hooks/useDeleteWithUndo'
+import UndoToast from '../components/UndoToast'
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0)
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -34,7 +36,8 @@ export default function Expenses() {
   const [editLoading, setEditLoading] = useState(false)
   const [editCustomCat, setEditCustomCat] = useState('')
 
-  const [deleteId, setDeleteId]     = useState(null)
+  const [removedIds, setRemovedIds] = useState(new Set())
+  const { scheduleDelete, undoPending, undoCountdown, cancelUndo } = useDeleteWithUndo()
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -101,11 +104,16 @@ export default function Expenses() {
     finally { setEditLoading(false) }
   }
 
-  const handleDelete = async () => {
-    try {
-      await api.delete(`/expenses/${deleteId}`)
-      setDeleteId(null); flash('Deleted'); fetchAll()
-    } catch { setError('Failed to delete') }
+  const handleDelete = (ex) => {
+    setRemovedIds(prev => new Set([...prev, ex._id]))
+    scheduleDelete({
+      label: `Expense deleted — ${ex.category}`,
+      onConfirm: async () => {
+        try { await api.delete(`/expenses/${ex._id}`); fetchAll() }
+        catch { setError('Failed to delete expense') }
+      },
+      onUndo: () => setRemovedIds(prev => { const s = new Set(prev); s.delete(ex._id); return s }),
+    })
   }
 
   const openAddWithCategory = (cat) => {
@@ -183,7 +191,7 @@ export default function Expenses() {
         </div>
       ) : (
         <div className="card divide-y divide-slate-50">
-          {expenses.map(ex => (
+          {expenses.filter(ex => !removedIds.has(ex._id)).map(ex => (
             <div key={ex._id} className="flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors">
               <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${catColor(ex.category)}`}>{ex.category}</span>
               <div className="flex-1 min-w-0">
@@ -193,7 +201,7 @@ export default function Expenses() {
               <p className="text-base font-bold text-red-600 flex-shrink-0">{fmt(ex.amount)}</p>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button onClick={() => openEdit(ex)} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"><PencilIcon className="h-4 w-4" /></button>
-                <button onClick={() => setDeleteId(ex._id)} className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"><TrashIcon className="h-4 w-4" /></button>
+                <button onClick={() => handleDelete(ex)} className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"><TrashIcon className="h-4 w-4" /></button>
               </div>
             </div>
           ))}
@@ -307,19 +315,7 @@ export default function Expenses() {
         </div>
       )}
 
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteId(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4"><TrashIcon className="h-6 w-6 text-red-500" /></div>
-            <h3 className="text-lg font-bold text-slate-900">Delete Expense?</h3>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setDeleteId(null)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={handleDelete} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <UndoToast undoPending={undoPending} undoCountdown={undoCountdown} onUndo={cancelUndo} />
     </div>
   )
 }

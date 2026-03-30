@@ -230,6 +230,7 @@ export default async function purchaseRoutes(fastify) {
       payMode: payMode || 'cash',
       staffId: userId, staffName: staff?.name || '',
       notes: note || '',
+      sourceId: purchase._id, sourceType: 'purchase',
       deletedAt: null,
     });
 
@@ -238,8 +239,33 @@ export default async function purchaseRoutes(fastify) {
 
   // ── DELETE /purchases/:id — delete ──
   fastify.delete('/:id', adminAuth, async (request, reply) => {
-    const purchase = await Purchase.findOneAndDelete({ _id: request.params.id, shopId: request.user.shopId });
+    const { shopId, userId } = request.user;
+    const purchase = await Purchase.findOneAndDelete({ _id: request.params.id, shopId });
     if (!purchase) return reply.status(404).send({ error: 'Purchase not found' });
+
+    // 1. Reverse stock for all items in this purchase
+    for (const item of purchase.items) {
+      if (!item.stockId) continue;
+      const stockItem = await Stock.findById(item.stockId);
+      if (!stockItem) continue;
+      const quantityBefore = stockItem.quantity;
+      stockItem.quantity = Math.max(0, stockItem.quantity - Number(item.quantity));
+      await stockItem.save();
+      await StockMovement.create({
+        shopId, stockId: stockItem._id, stockName: stockItem.name, stockCategory: stockItem.category,
+        type: 'adjustment', quantity: -Number(item.quantity),
+        quantityBefore, quantityAfter: stockItem.quantity,
+        note: `Purchase deleted — stock reversed (${purchase.vendor})`, recordedBy: userId,
+        purchaseId: purchase._id,
+      });
+    }
+
+    // 2. Soft-delete all mirror Transactions created from payments on this purchase
+    await Transaction.updateMany(
+      { sourceId: purchase._id, sourceType: 'purchase', deletedAt: null },
+      { $set: { deletedAt: new Date() } }
+    );
+
     return reply.send({ success: true });
   });
 
