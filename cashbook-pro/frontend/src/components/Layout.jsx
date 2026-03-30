@@ -10,13 +10,13 @@ import {
 } from '@heroicons/react/24/outline'
 
 const mainNav = [
-  { name: 'Dashboard',       href: '/dashboard',       icon: HomeIcon },
-  { name: 'Add Transaction', href: '/add-transaction', icon: PlusCircleIcon },
-  { name: 'History',         href: '/history',         icon: ClockIcon },
-  { name: 'Analytics',       href: '/analytics',       icon: ChartBarIcon },
-  { name: 'Customers',       href: '/customers',       icon: UserGroupIcon },
-  { name: 'Stock',           href: '/stock',           icon: ArchiveBoxIcon },
-  { name: 'Purchases',       href: '/purchases',       icon: ShoppingCartIcon },
+  { name: 'Dashboard',    href: '/dashboard',       icon: HomeIcon },
+  { name: 'Add Entry',    href: '/add-transaction', icon: PlusCircleIcon },
+  { name: 'All Entries',  href: '/history',         icon: ClockIcon },
+  { name: 'Reports',      href: '/analytics',       icon: ChartBarIcon },
+  { name: 'Customers',    href: '/customers',       icon: UserGroupIcon },
+  { name: 'Stock',        href: '/stock',           icon: ArchiveBoxIcon },
+  { name: 'Purchases',    href: '/purchases',       icon: ShoppingCartIcon },
 ]
 
 const adminNav = [

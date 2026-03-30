@@ -224,7 +224,7 @@ const Dashboard = () => {
               {/* Recent Transactions */}
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Recent Entries</h3>
                   <button
                     onClick={() => navigate('/history')}
                     className="text-primary-600 hover:text-primary-700 text-sm font-medium"
@@ -238,7 +238,7 @@ const Dashboard = () => {
                   ))}
                   {transactions.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      No transactions yet. Add your first transaction to get started!
+                      No entries yet. Add your first entry to get started!
                     </div>
                   )}
                 </div>
@@ -254,7 +254,7 @@ const Dashboard = () => {
                   <PlusCircleIcon className="h-8 w-8 text-primary-200" />
                 </div>
                 <p className="text-primary-100 mb-6">
-                  Add a new transaction quickly without leaving the dashboard.
+                  Add a new entry quickly.
                 </p>
                 <div className="space-y-3">
                   <button
@@ -262,14 +262,14 @@ const Dashboard = () => {
                     className="w-full bg-white text-primary-600 px-4 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center justify-center"
                   >
                     <ArrowTrendingUpIcon className="h-5 w-5 mr-2" />
-                    Add Income
+                    Money In
                   </button>
                   <button
                     onClick={() => navigate('/add-transaction?type=out')}
                     className="w-full bg-primary-500 bg-opacity-90 px-4 py-3 rounded-lg font-medium hover:bg-opacity-100 transition-colors flex items-center justify-center"
                   >
                     <ArrowTrendingDownIcon className="h-5 w-5 mr-2" />
-                    Add Expense
+                    Money Out
                   </button>
                 </div>
               </div>
@@ -284,7 +284,7 @@ const Dashboard = () => {
                       <span className="text-sm text-gray-600">This Month</span>
                     </div>
                     <span className="text-sm font-medium text-gray-900">
-                      {transactions.filter(t => new Date(t.date).getMonth() === new Date().getMonth()).length} transactions
+                      {transactions.filter(t => new Date(t.date).getMonth() === new Date().getMonth()).length} entries
                     </span>
                   </div>
 
@@ -311,13 +311,13 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center">
                       <ChartBarIcon className="h-5 w-5 text-gray-400 mr-3" />
-                      <span className="text-sm text-gray-600">Analytics</span>
+                      <span className="text-sm text-gray-600">Reports</span>
                     </div>
                     <button
                       onClick={() => navigate('/analytics')}
                       className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                     >
-                      View Reports
+                      View
                     </button>
                   </div>
                 </div>

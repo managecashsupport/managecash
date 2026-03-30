@@ -289,7 +289,7 @@ const AddTransaction = () => {
       }
 
     } catch (err) {
-      setErrors({ submit: err.message || 'Failed to create transaction' })
+      setErrors({ submit: err.message || 'Failed to save entry' })
     } finally {
       setIsSubmitting(false)
     }
@@ -330,9 +330,9 @@ const AddTransaction = () => {
             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
               <CheckCircleIcon className="h-6 w-6 text-green-600" />
             </div>
-            <h2 className="mt-6 text-3xl font-bold text-gray-900">{isEditing ? 'Transaction Updated!' : 'Transaction Added!'} ✅</h2>
+            <h2 className="mt-6 text-3xl font-bold text-gray-900">{isEditing ? 'Entry Updated!' : 'Entry Saved!'} ✅</h2>
             <p className="mt-2 text-sm text-gray-600">
-              Your {formData.type === 'in' ? 'income' : 'expense'} has been {isEditing ? 'updated' : 'recorded'}.
+              Your {formData.type === 'in' ? 'payment in' : 'payment out'} has been {isEditing ? 'updated' : 'recorded'}.
             </p>
           </div>
         </div>
@@ -379,8 +379,8 @@ const AddTransaction = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{isEditing ? 'Edit Transaction' : 'Add Transaction'}</h1>
-                <p className="text-gray-600">{isEditing ? 'Update the transaction details below.' : 'Record a new income or expense for your shop.'}</p>
+                <h1 className="text-2xl font-bold text-gray-900">{isEditing ? 'Edit Entry' : 'Add Entry'}</h1>
+                <p className="text-gray-600">{isEditing ? 'Update the entry details below.' : 'Record a new payment in or out for your shop.'}</p>
               </div>
               <div className="flex items-center space-x-4">
                 <button
@@ -399,7 +399,7 @@ const AddTransaction = () => {
               {/* Type Toggle */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Transaction Type
+                  Entry Type
                 </label>
                 <div className="flex space-x-4">
                   <button
@@ -412,7 +412,7 @@ const AddTransaction = () => {
                     }`}
                   >
                     <ArrowTrendingUpIcon className="h-5 w-5 mr-2" />
-                    Cash In (Income)
+                    Payment In
                   </button>
                   <button
                     type="button"
@@ -424,7 +424,7 @@ const AddTransaction = () => {
                     }`}
                   >
                     <ArrowTrendingDownIcon className="h-5 w-5 mr-2" />
-                    Cash Out (Expense)
+                    Payment Out
                   </button>
                 </div>
               </div>
@@ -635,7 +635,7 @@ const AddTransaction = () => {
               {/* Product Description */}
               <div>
                 <label htmlFor="productDescription" className="block text-sm font-medium text-gray-700">
-                  Product/Service Description
+                  Item / Details
                 </label>
                 <div className="mt-1">
                   <textarea
@@ -643,7 +643,7 @@ const AddTransaction = () => {
                     name="productDescription"
                     rows={2}
                     className="input-field"
-                    placeholder="Describe what was purchased or service provided"
+                    placeholder="What was sold or bought (e.g. Rice 10kg, Electric wire)"
                     value={formData.productDescription}
                     onChange={handleInputChange}
                   />
@@ -702,7 +702,7 @@ const AddTransaction = () => {
               {/* Notes */}
               <div>
                 <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-                  Additional Notes
+                  Notes
                 </label>
                 <div className="mt-1">
                   <textarea
@@ -710,7 +710,7 @@ const AddTransaction = () => {
                     name="notes"
                     rows={3}
                     className="input-field"
-                    placeholder="Any additional information about this transaction"
+                    placeholder="Any extra notes"
                     value={formData.notes}
                     onChange={handleInputChange}
                   />
@@ -771,7 +771,7 @@ const AddTransaction = () => {
                     ) : (
                       <>
                         <PlusCircleIcon className="h-5 w-5 mr-2" />
-                        {isEditing ? 'Update Transaction' : 'Add Transaction'}
+                        {isEditing ? 'Update Entry' : 'Save Entry'}
                       </>
                     )}
                   </button>
@@ -785,13 +785,13 @@ const AddTransaction = () => {
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-sm font-medium text-gray-600 mb-2">Today's Summary</h3>
               <p className="text-2xl font-bold text-gray-900">₹0</p>
-              <p className="text-xs text-gray-500">No transactions yet today</p>
+              <p className="text-xs text-gray-500">No entries yet today</p>
             </div>
             
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-sm font-medium text-gray-600 mb-2">This Month</h3>
               <p className="text-2xl font-bold text-gray-900">₹0</p>
-              <p className="text-xs text-gray-500">No transactions this month</p>
+              <p className="text-xs text-gray-500">No entries this month</p>
             </div>
             
             <div className="bg-white rounded-lg shadow p-6">

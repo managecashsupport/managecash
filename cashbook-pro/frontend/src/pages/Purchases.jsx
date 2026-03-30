@@ -20,8 +20,22 @@ const STATUS_BORDER = {
   paid:    '',
 }
 
-const emptyItem = { productName: '', category: '', quantity: '', unit: 'pcs', pricePerUnit: '' }
+const emptyItem = { productName: '', category: '', subCategory: '', quantity: '', unit: 'pcs', pricePerUnit: '' }
 const UNITS = ['pcs', 'kg', 'g', 'litre', 'ml', 'box', 'dozen', 'packet', 'roll', 'set', 'pair']
+
+const CATEGORIES = {
+  'Electrical':   ['Wiring', 'Switches', 'Fans', 'Bulbs / Tubelight', 'Cables', 'Meters', 'Other'],
+  'Furniture':    ['Chair', 'Table', 'Bed', 'Almirah', 'Sofa', 'Rack / Shelf', 'Other'],
+  'Grocery':      ['Grains / Daal', 'Oil / Ghee', 'Sugar / Salt', 'Spices', 'Biscuit / Snacks', 'Other'],
+  'Hardware':     ['Nails / Screws', 'Paint', 'Cement / Sand', 'Tools', 'Locks / Hinges', 'Pipes', 'Other'],
+  'Clothing':     ['Shirt / T-Shirt', 'Pant / Jean', 'Saree / Dupatta', 'Undergarments', 'Other'],
+  'Electronics':  ['Mobile', 'TV / Monitor', 'Fridge / AC', 'Fan / Cooler', 'Cables / Charger', 'Other'],
+  'Medicine':     ['Tablet', 'Syrup', 'Injection / Drip', 'Ointment', 'Other'],
+  'Stationery':   ['Paper / Register', 'Pen / Pencil', 'Ink / Toner', 'Files / Folders', 'Other'],
+  'Packaging':    ['Bags / Pouches', 'Boxes', 'Tape / Rope', 'Labels', 'Other'],
+  'Cleaning':     ['Broom / Mop', 'Phenyl / Soap', 'Dustbin', 'Other'],
+  'Other':        ['General', 'Miscellaneous'],
+}
 
 export default function Purchases() {
   const [purchases, setPurchases]   = useState([])
@@ -89,9 +103,10 @@ export default function Purchases() {
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
 
   // ── Add ──
-  const addItemRow  = () => setAddItems(p => [...p, { ...emptyItem }])
+  const addItemRow    = () => setAddItems(p => [...p, { ...emptyItem }])
   const removeItemRow = (i) => setAddItems(p => p.filter((_, idx) => idx !== i))
-  const updateItem  = (i, field, val) => setAddItems(p => p.map((it, idx) => idx === i ? { ...it, [field]: val } : it))
+  const updateItem    = (i, field, val) => setAddItems(p => p.map((it, idx) => idx === i ? { ...it, [field]: val } : it))
+  const changeItemCategory = (i, cat) => setAddItems(p => p.map((it, idx) => idx === i ? { ...it, category: cat, subCategory: '' } : it))
 
   const totalCalc = addItems.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.pricePerUnit) || 0), 0)
 
@@ -101,7 +116,11 @@ export default function Purchases() {
     if (addItems.some(it => !it.productName || !it.quantity || !it.pricePerUnit)) return setAddError('Fill all item fields')
     setAddLoading(true)
     try {
-      await api.post('/purchases', { ...addForm, items: addItems })
+      const itemsToSend = addItems.map(it => ({
+        ...it,
+        category: it.subCategory ? `${it.category} > ${it.subCategory}` : (it.category || 'Other'),
+      }))
+      await api.post('/purchases', { ...addForm, items: itemsToSend })
       setShowAdd(false)
       setAddForm({ vendor: '', gstNo: '', date: new Date().toISOString().split('T')[0], notes: '', initialPayment: '', initialPayMode: 'cash' })
       setAddItems([{ ...emptyItem }])
@@ -334,21 +353,55 @@ export default function Purchases() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium text-slate-700">Items *</label>
-                  <button type="button" onClick={addItemRow} className="text-xs text-blue-600 font-semibold hover:underline">+ Add Row</button>
+                  <button type="button" onClick={addItemRow} className="text-xs text-blue-600 font-semibold hover:underline">+ Add Item</button>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {addItems.map((it, i) => (
-                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                      <input type="text" placeholder="Product name" className="input-field col-span-3 text-sm" value={it.productName} onChange={e => updateItem(i, 'productName', e.target.value)} />
-                      <input type="text" placeholder="Category" className="input-field col-span-2 text-sm" value={it.category} onChange={e => updateItem(i, 'category', e.target.value)} />
-                      <input type="number" placeholder="Qty" min="0.01" step="any" className="input-field col-span-2 text-sm" value={it.quantity} onChange={e => updateItem(i, 'quantity', e.target.value)} />
-                      <select className="input-field col-span-2 text-sm" value={it.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
-                        {UNITS.map(u => <option key={u}>{u}</option>)}
-                      </select>
-                      <input type="number" placeholder="Price/unit" min="0" step="0.01" className="input-field col-span-2 text-sm" value={it.pricePerUnit} onChange={e => updateItem(i, 'pricePerUnit', e.target.value)} />
-                      {addItems.length > 1
-                        ? <button type="button" onClick={() => removeItemRow(i)} className="col-span-1 p-2 text-red-400 hover:text-red-600"><XMarkIcon className="h-4 w-4" /></button>
-                        : <div className="col-span-1" />}
+                    <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2 relative">
+                      {addItems.length > 1 && (
+                        <button type="button" onClick={() => removeItemRow(i)} className="absolute top-2 right-2 p-1 text-red-400 hover:text-red-600">
+                          <XMarkIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">Product Name *</label>
+                        <input type="text" placeholder="e.g. Anchor Wire 1.5mm" className="input-field text-sm" value={it.productName} onChange={e => updateItem(i, 'productName', e.target.value)} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Category</label>
+                          <select className="input-field text-sm" value={it.category} onChange={e => changeItemCategory(i, e.target.value)}>
+                            <option value="">-- Select --</option>
+                            {Object.keys(CATEGORIES).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Sub-Category</label>
+                          <select className="input-field text-sm" value={it.subCategory} onChange={e => updateItem(i, 'subCategory', e.target.value)} disabled={!it.category}>
+                            <option value="">-- Select --</option>
+                            {(CATEGORIES[it.category] || []).map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Qty *</label>
+                          <input type="number" placeholder="0" min="0.01" step="any" className="input-field text-sm" value={it.quantity} onChange={e => updateItem(i, 'quantity', e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Unit</label>
+                          <select className="input-field text-sm" value={it.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
+                            {UNITS.map(u => <option key={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Price/Unit (₹) *</label>
+                          <input type="number" placeholder="0.00" min="0" step="0.01" className="input-field text-sm" value={it.pricePerUnit} onChange={e => updateItem(i, 'pricePerUnit', e.target.value)} />
+                        </div>
+                      </div>
+                      {it.quantity && it.pricePerUnit && (
+                        <p className="text-xs text-right text-slate-500 font-medium">= {fmt((Number(it.quantity)||0)*(Number(it.pricePerUnit)||0))}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -457,7 +510,10 @@ export default function Purchases() {
                 <div className="space-y-2">
                   {editItems.map((it, i) => (
                     <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2">
-                      <p className="text-xs font-semibold text-slate-600">{it.productName}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-slate-600">{it.productName}</p>
+                        {it.category && <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{it.category}</span>}
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-xs text-slate-500 mb-1">Qty ({it.unit})</label>

@@ -191,7 +191,7 @@ const History = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Transaction History</h1>
+                <h1 className="text-2xl font-bold text-gray-900">All Entries</h1>
                 <p className="text-gray-600">View and manage all your transactions.</p>
               </div>
               <div className="flex items-center space-x-4">
