@@ -21,7 +21,6 @@ const mainNav = [
 
 const adminNav = [
   { name: 'Staff',    href: '/staff',    icon: UsersIcon },
-  { name: 'Salary',   href: '/salary',   icon: BanknotesIcon },
   { name: 'Expenses', href: '/expenses', icon: ReceiptPercentIcon },
 ]
 
