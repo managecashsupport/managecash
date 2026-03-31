@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   BookOpenIcon,
@@ -23,6 +23,7 @@ const Join = () => {
   const [codeInfo, setCodeInfo] = useState(null) // { shopName, shopId }
   const [formData, setFormData] = useState({ name: '', identifier: '', password: '', confirmPassword: '' })
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -100,7 +101,7 @@ const Join = () => {
           <div className="h-7 w-7 rounded-lg bg-blue-600 flex items-center justify-center">
             <BookOpenIcon className="h-4 w-4 text-white" />
           </div>
-          <span className="font-bold text-slate-900">CashBook <span className="text-blue-600">Pro</span></span>
+          <span className="font-bold text-slate-900">Manage<span className="text-blue-600">Cash</span></span>
         </button>
       </header>
 
@@ -237,12 +238,19 @@ const Join = () => {
                   <div className="relative">
                     <LockClosedIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                     <input
-                      type="password" required
-                      className="input-field pl-10"
+                      type={showConfirmPassword ? 'text' : 'password'} required
+                      className="input-field pl-10 pr-10"
                       placeholder="Repeat your password"
                       value={formData.confirmPassword}
                       onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showConfirmPassword ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
 
