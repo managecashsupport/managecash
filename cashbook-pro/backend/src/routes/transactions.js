@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { tenantResolver } from '../middleware/tenantResolver.js';
 import { roleCheck } from '../middleware/roleCheck.js';
 import Transaction from '../models/Transaction.js';
@@ -82,7 +83,12 @@ export default async function transactionRoutes(fastify) {
         Transaction.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean(),
       ]);
 
-      const summary = await buildSummary({ shopId: request.user.shopId, ...(filter.staffId ? { staffId: filter.staffId } : {}), ...(filter.type ? { type: filter.type } : {}), ...(filter.date ? { date: filter.date } : {}) });
+      const summaryFilter = { shopId: request.user.shopId };
+      if (filter.staffId) summaryFilter.staffId = new mongoose.Types.ObjectId(String(filter.staffId));
+      if (filter.type)    summaryFilter.type    = filter.type;
+      if (filter.date)    summaryFilter.date    = filter.date;
+      if (filter.payMode) summaryFilter.payMode = filter.payMode;
+      const summary = await buildSummary(summaryFilter);
 
       return reply.send({
         data: transactions.map(formatTx),
