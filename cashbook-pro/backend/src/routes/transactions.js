@@ -297,6 +297,28 @@ export default async function transactionRoutes(fastify) {
       }
 
       const updated = await Transaction.findByIdAndUpdate(id, { $set: updates }, { new: true });
+
+      // Sync the linked WalletTransaction passbook entry if amount/date/payMode/description changed
+      if (exists.linkedCustomerId) {
+        const walletUpdates = {}
+        if (updates.amount !== undefined)              walletUpdates.amount              = updates.amount
+        if (updates.date !== undefined)                walletUpdates.date                = updates.date
+        if (updates.payMode !== undefined)             walletUpdates.payMode             = updates.payMode
+        if (updates.productDescription !== undefined)  walletUpdates.productDescription  = updates.productDescription
+        if (updates.amount !== undefined) {
+          // Recalculate balanceAfter: balanceBefore + new effect
+          const walletTx = await WalletTransaction.findOne({ transactionId: exists._id })
+          if (walletTx) {
+            const oldEffect = exists.type === 'out' ? -exists.amount : exists.amount
+            const newEffect = exists.type === 'out' ? -updates.amount : updates.amount
+            walletUpdates.balanceAfter = walletTx.balanceBefore - oldEffect + newEffect
+          }
+        }
+        if (Object.keys(walletUpdates).length) {
+          await WalletTransaction.findOneAndUpdate({ transactionId: exists._id }, { $set: walletUpdates })
+        }
+      }
+
       return reply.send(formatTx(updated));
 
     } catch (err) {
