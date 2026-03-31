@@ -159,8 +159,7 @@ const AddTransaction = () => {
     setShowCustomerDropdown(false)
   }
 
-  const handleQuickAdd = async (e) => {
-    e.preventDefault()
+  const handleQuickAdd = async () => {
     setQuickError('')
     if (!quickForm.fullName.trim()) return setQuickError('Name is required')
     if (!/^\d{7,15}$/.test(quickForm.mobile.replace(/\s+/g, '')))
@@ -564,7 +563,7 @@ const AddTransaction = () => {
                   {showQuickAdd && !selectedCustomer && (
                     <div className="mt-2 bg-blue-50 border border-blue-200 rounded-xl p-4">
                       <p className="text-sm font-bold text-blue-800 mb-3">New Customer Details</p>
-                      <form onSubmit={handleQuickAdd} className="space-y-2.5">
+                      <div className="space-y-2.5">
                         <input
                           type="text"
                           className="input-field text-sm"
@@ -588,7 +587,7 @@ const AddTransaction = () => {
                         />
                         {quickError && <p className="text-xs text-red-600">{quickError}</p>}
                         <div className="flex gap-2 pt-1">
-                          <button type="submit" disabled={quickLoading}
+                          <button type="button" onClick={handleQuickAdd} disabled={quickLoading}
                             className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-60 transition-colors">
                             {quickLoading ? 'Saving…' : 'Save & Select'}
                           </button>
@@ -597,7 +596,7 @@ const AddTransaction = () => {
                             Cancel
                           </button>
                         </div>
-                      </form>
+                      </div>
                     </div>
                   )}
 
