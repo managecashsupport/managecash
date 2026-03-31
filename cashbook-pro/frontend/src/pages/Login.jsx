@@ -279,6 +279,15 @@ const Login = () => {
               </div>
             </div>
 
+            {tab === 'admin' && (
+              <div className="flex justify-end -mt-2">
+                <button type="button" onClick={() => navigate('/forgot-password')}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isLoading}
@@ -295,7 +304,7 @@ const Login = () => {
 
           {tab === 'staff' && (
             <p className="mt-4 text-center text-xs text-slate-400">
-              Use the invite link shared by your manager to sign in
+              Forgot your password? Contact your admin to get a reset link.
             </p>
           )}
 

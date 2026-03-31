@@ -20,6 +20,8 @@ import Purchases from './pages/Purchases'
 import Salary from './pages/Salary'
 import Expenses from './pages/Expenses'
 import VerifyEmail from './pages/VerifyEmail'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -45,7 +47,9 @@ function App() {
       <Route path="/login"    element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} />
       <Route path="/join"          element={isAuthenticated ? <Navigate to="/dashboard" /> : <Join />} />
-      <Route path="/verify-email"  element={<VerifyEmail />} />
+      <Route path="/verify-email"     element={<VerifyEmail />} />
+      <Route path="/forgot-password"  element={<ForgotPassword />} />
+      <Route path="/reset-password"   element={<ResetPassword />} />
 
       {/* Protected app routes */}
       <Route path="/" element={

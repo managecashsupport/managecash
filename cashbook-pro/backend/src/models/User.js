@@ -9,9 +9,11 @@ const userSchema = new mongoose.Schema({
   passwordHash:        { type: String, required: true },
   role:                { type: String, enum: ['admin', 'staff'], default: 'staff' },
   isActive:            { type: Boolean, default: true },
-  emailVerified:       { type: Boolean, default: false },
-  emailVerifyToken:    { type: String, default: null },
-  emailVerifyExpiry:   { type: Date, default: null },
+  emailVerified:        { type: Boolean, default: false },
+  emailVerifyToken:     { type: String, default: null },
+  emailVerifyExpiry:    { type: Date, default: null },
+  passwordResetToken:   { type: String, default: null },
+  passwordResetExpiry:  { type: Date, default: null },
 }, { timestamps: true });
 
 // username must be unique per shop

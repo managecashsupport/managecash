@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 import Tenant from '../models/Tenant.js';
 import User from '../models/User.js';
 import InviteCode from '../models/InviteCode.js';
-import { sendVerificationEmail } from '../services/email.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email.js';
 
 function generateTokens(userId, shopId, role) {
   const accessToken = jwt.sign(
@@ -329,6 +329,88 @@ export default async function authRoutes(fastify) {
     } catch (err) {
       console.error('Resend verification error:', err);
       return reply.status(500).send({ error: 'Failed to resend verification email' });
+    }
+  });
+
+  // POST /auth/forgot-password — admin requests a password reset email
+  fastify.post('/forgot-password', async (request, reply) => {
+    try {
+      const { email } = request.body;
+      if (!email) return reply.status(400).send({ error: 'Email is required' });
+
+      const user = await User.findOne({ email, role: 'admin', emailVerified: true });
+      // Always respond success to prevent email enumeration
+      if (!user) return reply.send({ success: true });
+
+      const token = randomBytes(32).toString('hex');
+      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await User.findByIdAndUpdate(user._id, {
+        $set: { passwordResetToken: token, passwordResetExpiry: expiry },
+      });
+
+      sendPasswordResetEmail({ to: user.email, name: user.name, token })
+        .catch(err => console.error('Password reset email failed:', err.message));
+
+      return reply.send({ success: true });
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      return reply.status(500).send({ error: 'Failed to send reset email' });
+    }
+  });
+
+  // POST /auth/reset-password — set new password using reset token
+  fastify.post('/reset-password', async (request, reply) => {
+    try {
+      const { token, password } = request.body;
+      if (!token || !password) return reply.status(400).send({ error: 'Token and password are required' });
+      if (password.length < 8 || !/(?=.*[A-Z])(?=.*\d)/.test(password)) {
+        return reply.status(400).send({ error: 'Password must be at least 8 characters with one uppercase letter and one number' });
+      }
+
+      const user = await User.findOne({
+        passwordResetToken: token,
+        passwordResetExpiry: { $gt: new Date() },
+      });
+      if (!user) return reply.status(400).send({ error: 'Reset link is invalid or has expired.' });
+
+      const passwordHash = await bcrypt.hash(password, 12);
+      await User.findByIdAndUpdate(user._id, {
+        $set:   { passwordHash },
+        $unset: { passwordResetToken: '', passwordResetExpiry: '' },
+      });
+
+      return reply.send({ success: true });
+    } catch (err) {
+      console.error('Reset password error:', err);
+      return reply.status(500).send({ error: 'Failed to reset password' });
+    }
+  });
+
+  // POST /auth/staff-reset — admin generates a password reset link for a staff member
+  fastify.post('/staff-reset', async (request, reply) => {
+    try {
+      const authHeader = request.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) return reply.status(401).send({ error: 'Unauthorized' });
+      const payload = jwt.verify(authHeader.split(' ')[1], process.env.JWT_ACCESS_SECRET);
+      if (payload.role !== 'admin') return reply.status(403).send({ error: 'Admin only' });
+
+      const { userId } = request.body;
+      if (!userId) return reply.status(400).send({ error: 'userId is required' });
+
+      const staff = await User.findOne({ _id: userId, shopId: payload.shopId, isActive: true });
+      if (!staff) return reply.status(404).send({ error: 'Staff member not found' });
+
+      const token = randomBytes(32).toString('hex');
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours for staff
+      await User.findByIdAndUpdate(staff._id, {
+        $set: { passwordResetToken: token, passwordResetExpiry: expiry },
+      });
+
+      const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+      return reply.send({ resetUrl });
+    } catch (err) {
+      console.error('Staff reset error:', err);
+      return reply.status(500).send({ error: 'Failed to generate reset link' });
     }
   });
 

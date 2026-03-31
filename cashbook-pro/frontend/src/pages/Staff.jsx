@@ -5,7 +5,7 @@ import {
   UserPlusIcon, UserIcon, ShieldCheckIcon, TrashIcon, PencilIcon,
   XMarkIcon, CheckCircleIcon, ExclamationTriangleIcon, LinkIcon,
   ClipboardDocumentIcon, ClockIcon, BanknotesIcon, PlusIcon,
-  ChevronDownIcon, ChevronUpIcon,
+  ChevronDownIcon, ChevronUpIcon, KeyIcon,
 } from '@heroicons/react/24/outline'
 import useDeleteWithUndo from '../hooks/useDeleteWithUndo'
 import UndoToast from '../components/UndoToast'
@@ -36,6 +36,8 @@ const Staff = () => {
   const [editForm, setEditForm]             = useState({ name: '', role: 'staff' })
   const [editError, setEditError]           = useState('')
   const [editSubmitting, setEditSubmitting] = useState(false)
+  const [resetLinks, setResetLinks] = useState({}) // { [memberId]: url }
+  const [resetLoading, setResetLoading] = useState(null)
   const [removedStaffIds, setRemovedStaffIds] = useState(new Set())
   const { scheduleDelete, undoPending, undoCountdown, cancelUndo } = useDeleteWithUndo()
 
@@ -109,6 +111,23 @@ const Staff = () => {
     } catch (err) { setEditError(err.response?.data?.error || 'Failed to update') }
     finally { setEditSubmitting(false) }
   }
+  const handleStaffReset = async (member) => {
+    setResetLoading(member.id)
+    try {
+      const res = await api.post('/auth/staff-reset', { userId: member.id })
+      setResetLinks(prev => ({ ...prev, [member.id]: res.data.resetUrl }))
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to generate reset link')
+    } finally {
+      setResetLoading(null)
+    }
+  }
+
+  const copyResetLink = (memberId) => {
+    navigator.clipboard.writeText(resetLinks[memberId])
+    flash('Reset link copied!')
+  }
+
   const handleDelete = (member) => {
     setRemovedStaffIds(prev => new Set([...prev, member.id]))
     scheduleDelete({
@@ -330,6 +349,11 @@ const Staff = () => {
                   </button>
                   {member.id !== user?.id && (
                     <>
+                      <button onClick={() => handleStaffReset(member)}
+                        disabled={resetLoading === member.id}
+                        className="p-2 rounded-lg text-slate-400 hover:text-orange-500 hover:bg-orange-50 transition-colors disabled:opacity-50" title="Send Password Reset Link">
+                        <KeyIcon className="h-4 w-4" />
+                      </button>
                       <button onClick={() => openEdit(member)}
                         className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit">
                         <PencilIcon className="h-4 w-4" />
@@ -342,6 +366,22 @@ const Staff = () => {
                   )}
                 </div>
               </div>
+
+              {/* ── Reset Link Banner ── */}
+              {resetLinks[member.id] && (
+                <div className="border-t border-orange-100 bg-orange-50 px-5 py-3 flex items-center gap-3">
+                  <KeyIcon className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                  <p className="text-xs text-orange-700 flex-1 truncate font-mono">{resetLinks[member.id]}</p>
+                  <button onClick={() => copyResetLink(member.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors flex-shrink-0">
+                    <ClipboardDocumentIcon className="h-3.5 w-3.5" /> Copy Link
+                  </button>
+                  <button onClick={() => setResetLinks(prev => { const n = {...prev}; delete n[member.id]; return n })}
+                    className="p-1 text-orange-400 hover:text-orange-600 transition-colors">
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
 
               {/* ── Salary Panel ── */}
               {salaryPanelId === member.id && (
