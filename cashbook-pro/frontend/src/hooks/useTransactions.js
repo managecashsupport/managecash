@@ -47,17 +47,9 @@ const useTransactions = () => {
     try {
       setLoading(true)
       setError(null)
-      
+
       const response = await api.post('/transactions', transactionData)
-      const newTransaction = response.data
-      
-      // Update local state optimistically
-      setTransactions(prev => [newTransaction, ...prev])
-      
-      // Recalculate summary
-      await fetchTransactions()
-      
-      return { success: true, data: newTransaction }
+      return { success: true, data: response.data }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create transaction')
       return { success: false, error: err.response?.data?.error }
@@ -92,15 +84,10 @@ const useTransactions = () => {
     try {
       setLoading(true)
       setError(null)
-      
+
       await api.delete(`/transactions/${id}`)
-      
-      // Update local state
-      setTransactions(prev => prev.filter(t => t.id !== id))
-      
-      // Recalculate summary
-      await fetchTransactions()
-      
+      setTransactions(prev => prev.filter(t => (t._id || t.id) === id ? false : true))
+
       return { success: true }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete transaction')
