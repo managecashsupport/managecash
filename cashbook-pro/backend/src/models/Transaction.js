@@ -14,7 +14,8 @@ const transactionSchema = new mongoose.Schema({
   imageKey:           { type: String, default: null },
   notes:              { type: String, default: null },
   deletedAt:          { type: Date, default: null },
-  // Stock linkage (optional — only for 'out' transactions)
+  billNo:             { type: String, default: null },
+  // Stock linkage (optional — for any transaction type)
   stockId:            { type: mongoose.Schema.Types.ObjectId, ref: 'Stock', default: null },
   stockName:          { type: String, default: null },
   stockCategory:      { type: String, default: null },

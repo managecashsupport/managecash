@@ -108,7 +108,7 @@ export default async function transactionRoutes(fastify) {
   fastify.post('/', { preHandler: [tenantResolver] }, async (request, reply) => {
     try {
       const { type, customerName, amount, productDescription, date, payMode, imageUrl, imageKey, notes,
-              stockId, quantitySold, linkedCustomerId } = request.body;
+              stockId, quantitySold, linkedCustomerId, billNo } = request.body;
 
       if (!type || !customerName || !amount || !date) {
         return reply.status(400).send({ error: 'Type, customer name, amount, and date are required' });
@@ -137,9 +137,9 @@ export default async function transactionRoutes(fastify) {
       const staff = await User.findOne({ _id: request.user.userId, isActive: true });
       if (!staff) return reply.status(404).send({ error: 'Staff not found' });
 
-      // Resolve stock item if provided
+      // Resolve stock item if provided (works for both 'in' and 'out')
       let stockItem = null;
-      if (stockId && type === 'out') {
+      if (stockId) {
         stockItem = await Stock.findOne({ _id: stockId, shopId: request.user.shopId, isActive: true });
         if (!stockItem) return reply.status(404).send({ error: 'Stock item not found' });
         if (!quantitySold || quantitySold <= 0) return reply.status(400).send({ error: 'Quantity sold is required when a product is selected' });
@@ -163,6 +163,7 @@ export default async function transactionRoutes(fastify) {
         imageUrl: imageUrl || null,
         imageKey: imageKey || null,
         notes: notes || null,
+        billNo: billNo?.trim() || null,
         stockId:          stockItem ? stockItem._id  : null,
         stockName:        stockItem ? stockItem.name : null,
         stockCategory:    stockItem ? stockItem.category : null,
@@ -240,7 +241,7 @@ export default async function transactionRoutes(fastify) {
       const exists = await Transaction.findOne(filter);
       if (!exists) return reply.status(404).send({ error: 'Transaction not found or cannot be edited' });
 
-      const { customerName, amount, productDescription, date, payMode, imageUrl, notes, quantitySold } = request.body;
+      const { customerName, amount, productDescription, date, payMode, imageUrl, notes, quantitySold, billNo } = request.body;
       const updates = {};
 
       if (customerName)              updates.customerName       = customerName;
@@ -256,7 +257,8 @@ export default async function transactionRoutes(fastify) {
         updates.payMode = payMode;
       }
       if (imageUrl !== undefined)    updates.imageUrl  = imageUrl || null;
-      if (notes !== undefined)       updates.notes     = notes || null;
+      if (notes   !== undefined)     updates.notes     = notes || null;
+      if (billNo  !== undefined)     updates.billNo    = billNo?.trim() || null;
 
       // Adjust stock if quantitySold changed on an 'out' transaction
       if (exists.stockId && quantitySold !== undefined) {

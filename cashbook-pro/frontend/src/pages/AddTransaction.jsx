@@ -44,6 +44,9 @@ const AddTransaction = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
+  // Bill No
+  const [billNo, setBillNo] = useState(existingTx?.billNo || '')
+
   // Stock linkage
   const [stockItems, setStockItems] = useState([])
   const [selectedStock, setSelectedStock] = useState(null)
@@ -52,18 +55,16 @@ const AddTransaction = () => {
   const [quantitySold, setQuantitySold] = useState(existingTx?.quantitySold || '')
 
   useEffect(() => {
-    if (formData.type === 'out') {
-      api.get('/stock').then(res => {
-        const items = res.data.items
-        setStockItems(items)
-        // Pre-select stock item when editing
-        if (isEditing && existingTx?.stockId) {
-          const found = items.find(i => i._id === existingTx.stockId)
-          if (found) setSelectedStock(found)
-        }
-      }).catch(() => {})
-    }
-  }, [formData.type])
+    api.get('/stock').then(res => {
+      const items = res.data.items
+      setStockItems(items)
+      // Pre-select stock item when editing
+      if (isEditing && existingTx?.stockId) {
+        const found = items.find(i => i._id === existingTx.stockId)
+        if (found) setSelectedStock(found)
+      }
+    }).catch(() => {})
+  }, [])
 
   const filteredStock = stockItems.filter(s =>
     s.name.toLowerCase().includes(stockSearch.toLowerCase()) ||
@@ -267,6 +268,7 @@ const AddTransaction = () => {
         payMode: formData.payMode,
         imageUrl,
         notes: formData.notes || null,
+        billNo: billNo.trim() || null,
         ...(selectedStock && quantitySold ? {
           stockId: selectedStock._id,
           quantitySold: Number(quantitySold),
@@ -310,6 +312,8 @@ const AddTransaction = () => {
     setShowSuccess(false)
     setSelectedCustomer(null)
     setCustomerQuery('')
+    setBillNo('')
+    clearStock()
   }
 
   const formatCurrency = (amount) => {
@@ -428,10 +432,9 @@ const AddTransaction = () => {
                 </div>
               </div>
 
-              {/* Product from Stock (Debit only) */}
-              {formData.type === 'out' && (
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-semibold text-slate-700">Product Sold <span className="text-slate-400 font-normal">(optional — links to stock)</span></p>
+              {/* Product from Stock */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <p className="text-sm font-semibold text-slate-700">Product / Item <span className="text-slate-400 font-normal">(optional — links to stock & auto-deducts)</span></p>
 
                   {selectedStock ? (
                     <div className="flex items-center gap-3 bg-white border border-emerald-200 rounded-xl px-4 py-3">
@@ -478,7 +481,6 @@ const AddTransaction = () => {
                     </div>
                   )}
                 </div>
-              )}
 
               {/* Customer */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -631,21 +633,38 @@ const AddTransaction = () => {
                 </div>
               </div>
 
-              {/* Product Description */}
-              <div>
-                <label htmlFor="productDescription" className="block text-sm font-medium text-gray-700">
-                  Item / Details
-                </label>
-                <div className="mt-1">
-                  <textarea
-                    id="productDescription"
-                    name="productDescription"
-                    rows={2}
-                    className="input-field"
-                    placeholder="What was sold or bought (e.g. Rice 10kg, Electric wire)"
-                    value={formData.productDescription}
-                    onChange={handleInputChange}
-                  />
+              {/* Product Description + Bill No */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label htmlFor="productDescription" className="block text-sm font-medium text-gray-700">
+                    Item / Details
+                  </label>
+                  <div className="mt-1">
+                    <textarea
+                      id="productDescription"
+                      name="productDescription"
+                      rows={2}
+                      className="input-field"
+                      placeholder="What was sold or bought (e.g. Rice 10kg, Electric wire)"
+                      value={formData.productDescription}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="billNo" className="block text-sm font-medium text-gray-700">
+                    Bill / Invoice No.
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="billNo"
+                      type="text"
+                      className="input-field"
+                      placeholder="e.g. INV-2024-001"
+                      value={billNo}
+                      onChange={e => setBillNo(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
 
