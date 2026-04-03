@@ -59,7 +59,7 @@ export default function Salary() {
       if (filterStatus) params.status  = filterStatus
 
       const sRes = await api.get('/salaries', { params })
-      setSalaries(sRes.data)
+      setSalaries(sRes.data.salaries ?? sRes.data)
     } catch {
       setError('Failed to load salaries')
     } finally {

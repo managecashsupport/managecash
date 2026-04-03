@@ -21,14 +21,16 @@ async function generateCustomerId(shopId) {
 export default async function customerRoutes(fastify) {
   const auth = { preHandler: [tenantResolver] };
 
-  // ── GET /customers — list all (search by name/mobile/id/village) ──
+  // ── GET /customers — paginated list ──
   fastify.get('/', auth, async (request, reply) => {
-    const { search, village, includeInactive, createdFrom, createdTo } = request.query;
+    const { search, village, includeInactive, createdFrom, createdTo, page = 1, limit = 500 } = request.query;
     const { shopId } = request.user;
+    const limitNum = Math.min(parseInt(limit), 500);
+    const skip     = (parseInt(page) - 1) * limitNum;
 
     const filter = { shopId };
     if (!includeInactive) filter.isActive = true;
-    if (village) filter.village = { $regex: `^${village}$`, $options: 'i' };
+    if (village) filter.village = { $regex: `^${village.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
     if (search) {
       filter.$or = [
         { fullName:   { $regex: search, $options: 'i' } },
@@ -43,8 +45,12 @@ export default async function customerRoutes(fastify) {
       if (createdTo)   filter.createdAt.$lte = new Date(new Date(createdTo).setHours(23, 59, 59, 999));
     }
 
-    const customers = await Customer.find(filter).sort({ fullName: 1 });
-    return reply.send(customers);
+    const [customers, total] = await Promise.all([
+      Customer.find(filter).sort({ fullName: 1 }).skip(skip).limit(limitNum).lean(),
+      Customer.countDocuments(filter),
+    ]);
+
+    return reply.send({ customers, total, page: parseInt(page), totalPages: Math.ceil(total / limitNum) });
   });
 
   // ── GET /customers/villages — distinct village list for autocomplete ──

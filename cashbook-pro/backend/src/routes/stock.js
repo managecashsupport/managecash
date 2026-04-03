@@ -7,13 +7,15 @@ export default async function stockRoutes(fastify) {
   const auth      = { preHandler: [tenantResolver] };
   const adminAuth = { preHandler: [tenantResolver, roleCheck(['admin'])] };
 
-  // ── GET /stock — list all items ──
+  // ── GET /stock — paginated list ──
   fastify.get('/', auth, async (request, reply) => {
-    const { category, search, lowStock } = request.query;
+    const { category, search, lowStock, page = 1, limit = 100 } = request.query;
     const { shopId } = request.user;
+    const limitNum = Math.min(parseInt(limit), 500);
+    const skip     = (parseInt(page) - 1) * limitNum;
 
     const filter = { shopId, isActive: true };
-    if (category) filter.category = { $regex: category, $options: 'i' };
+    if (category) filter.category = { $regex: category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
     if (search)   filter.$or = [
       { name:        { $regex: search, $options: 'i' } },
       { category:    { $regex: search, $options: 'i' } },
@@ -21,16 +23,19 @@ export default async function stockRoutes(fastify) {
     ];
     if (lowStock === 'true') filter.quantity = { $lte: LOW_STOCK_THRESHOLD };
 
-    const items = await Stock.find(filter).sort({ category: 1, name: 1 });
+    const [items, total] = await Promise.all([
+      Stock.find(filter).sort({ category: 1, name: 1 }).skip(skip).limit(limitNum).lean(),
+      Stock.countDocuments(filter),
+    ]);
 
-    // Group by category
+    // Group by category (done on the already-paginated subset)
     const grouped = items.reduce((acc, item) => {
       if (!acc[item.category]) acc[item.category] = [];
       acc[item.category].push(item);
       return acc;
     }, {});
 
-    return reply.send({ items, grouped, lowStockThreshold: LOW_STOCK_THRESHOLD });
+    return reply.send({ items, grouped, total, page: parseInt(page), totalPages: Math.ceil(total / limitNum), lowStockThreshold: LOW_STOCK_THRESHOLD });
   });
 
   // ── GET /stock/categories — distinct categories ──

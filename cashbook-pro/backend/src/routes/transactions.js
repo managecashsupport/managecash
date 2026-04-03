@@ -382,6 +382,98 @@ export default async function transactionRoutes(fastify) {
     }
   });
 
+  // GET /transactions/dashboard — single aggregated call for the Dashboard page
+  fastify.get('/dashboard', { preHandler: [tenantResolver] }, async (request, reply) => {
+    try {
+      const { shopId, userId, role } = request.user;
+      const daysNum = Math.min(parseInt(request.query.days) || 30, 90);
+
+      const periodStart = new Date();
+      periodStart.setDate(periodStart.getDate() - daysNum);
+      periodStart.setHours(0, 0, 0, 0);
+
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
+
+      const staffMatch = role === 'staff'
+        ? { staffId: new mongoose.Types.ObjectId(String(userId)) }
+        : {};
+
+      const periodFilter = { shopId, deletedAt: null, date: { $gte: periodStart }, ...staffMatch };
+      const todayFilter  = { shopId, deletedAt: null, date: { $gte: todayStart, $lte: todayEnd }, ...staffMatch };
+
+      const [period, today, chartRows, categoryRows, recentTx] = await Promise.all([
+        Transaction.aggregate([
+          { $match: periodFilter },
+          { $group: {
+            _id:      null,
+            totalIn:  { $sum: { $cond: [{ $eq: ['$type', 'in']  }, '$amount', 0] } },
+            totalOut: { $sum: { $cond: [{ $eq: ['$type', 'out'] }, '$amount', 0] } },
+            cashTx:   { $sum: { $cond: [{ $eq: ['$payMode', 'cash']   }, 1, 0] } },
+            onlineTx: { $sum: { $cond: [{ $eq: ['$payMode', 'online'] }, 1, 0] } },
+            count:    { $sum: 1 },
+          }},
+        ]),
+        Transaction.aggregate([
+          { $match: todayFilter },
+          { $group: {
+            _id:      null,
+            todayIn:  { $sum: { $cond: [{ $eq: ['$type', 'in']  }, '$amount', 0] } },
+            todayOut: { $sum: { $cond: [{ $eq: ['$type', 'out'] }, '$amount', 0] } },
+          }},
+        ]),
+        // Daily chart: group by date string
+        Transaction.aggregate([
+          { $match: periodFilter },
+          { $group: {
+            _id:      { $dateToString: { format: '%Y-%m-%d', date: '$date', timezone: 'Asia/Kolkata' } },
+            totalIn:  { $sum: { $cond: [{ $eq: ['$type', 'in']  }, '$amount', 0] } },
+            totalOut: { $sum: { $cond: [{ $eq: ['$type', 'out'] }, '$amount', 0] } },
+          }},
+          { $sort: { _id: 1 } },
+        ]),
+        // Top 8 categories by absolute value
+        Transaction.aggregate([
+          { $match: periodFilter },
+          { $group: {
+            _id: { $ifNull: ['$productDescription', '$customerName'] },
+            net: { $sum: { $cond: [{ $eq: ['$type', 'in'] }, '$amount', { $multiply: ['$amount', -1] }] } },
+          }},
+          { $project: { _id: 1, abs: { $abs: '$net' }, net: 1 } },
+          { $sort: { abs: -1 } },
+          { $limit: 8 },
+        ]),
+        // Recent 6 transactions
+        Transaction.find({ shopId, deletedAt: null, ...staffMatch })
+          .sort({ createdAt: -1 }).limit(6).lean(),
+      ]);
+
+      const p = period[0]  || {};
+      const t = today[0]   || {};
+      return reply.send({
+        period: {
+          totalIn:  fmt(p.totalIn),
+          totalOut: fmt(p.totalOut),
+          net:      fmt((p.totalIn || 0) - (p.totalOut || 0)),
+          cashTx:   p.cashTx   || 0,
+          onlineTx: p.onlineTx || 0,
+          count:    p.count    || 0,
+        },
+        today: {
+          in:  fmt(t.todayIn),
+          out: fmt(t.todayOut),
+          net: fmt((t.todayIn || 0) - (t.todayOut || 0)),
+        },
+        chartRows,    // [{ _id: '2024-01-15', totalIn, totalOut }]
+        categoryRows, // [{ _id: 'label', net, abs }]
+        recentTx: recentTx.map(formatTx),
+      });
+    } catch (err) {
+      console.error('Dashboard error:', err);
+      return reply.status(500).send({ error: 'Failed to load dashboard' });
+    }
+  });
+
   // GET /transactions/summary
   fastify.get('/summary', { preHandler: [tenantResolver] }, async (request, reply) => {
     try {
@@ -414,7 +506,10 @@ export default async function transactionRoutes(fastify) {
         if (date_to)   filter.date.$lte = new Date(date_to);
       }
 
-      const transactions = await Transaction.find(filter).sort({ date: -1, createdAt: -1 }).lean();
+      // Use cursor to avoid loading 100k+ records into memory at once
+      const cursor = Transaction.find(filter).sort({ date: -1, createdAt: -1 }).lean().cursor();
+      const transactions = [];
+      for await (const doc of cursor) transactions.push(doc);
 
       const headers = ['Transaction Type','Customer Name','Product Description','Amount','Date','Payment Mode','Staff Name','Notes','Created At'];
       const csv = [

@@ -14,10 +14,12 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 export default async function salaryRoutes(fastify) {
   const adminAuth = { preHandler: [tenantResolver, adminOnly] };
 
-  // ── GET /salaries — list, optionally filter by month/year/staff ──
+  // ── GET /salaries — paginated list ──
   fastify.get('/', adminAuth, async (request, reply) => {
-    const { month, year, staffId, status } = request.query;
+    const { month, year, staffId, status, page = 1, limit = 50 } = request.query;
     const { shopId } = request.user;
+    const limitNum = Math.min(parseInt(limit), 200);
+    const skip     = (parseInt(page) - 1) * limitNum;
 
     const filter = { shopId };
     if (month)   filter.month   = Number(month);
@@ -25,8 +27,12 @@ export default async function salaryRoutes(fastify) {
     if (staffId) filter.staffId = staffId;
     if (status)  filter.status  = status;
 
-    const salaries = await Salary.find(filter).sort({ year: -1, month: -1, staffName: 1 });
-    return reply.send(salaries);
+    const [salaries, total] = await Promise.all([
+      Salary.find(filter).sort({ year: -1, month: -1, staffName: 1 }).skip(skip).limit(limitNum).lean(),
+      Salary.countDocuments(filter),
+    ]);
+
+    return reply.send({ salaries, total, page: parseInt(page), totalPages: Math.ceil(total / limitNum) });
   });
 
   // ── POST /salaries — create salary record for a month ──

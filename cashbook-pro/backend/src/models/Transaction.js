@@ -22,10 +22,18 @@ const transactionSchema = new mongoose.Schema({
   unit:               { type: String, default: null },
   // Customer wallet linkage (optional)
   linkedCustomerId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
-  linkedCustomerUid:  { type: String, default: null }, // human-readable customerId e.g. "C001"
+  linkedCustomerUid:  { type: String, default: null },
   // Source linkage — for mirror transactions created from expenses / salary / purchases
   sourceId:           { type: mongoose.Schema.Types.ObjectId, default: null },
   sourceType:         { type: String, enum: ['expense', 'salary', 'purchase', null], default: null },
 }, { timestamps: true });
+
+// Compound indexes — cover every common query pattern
+transactionSchema.index({ shopId: 1, deletedAt: 1, date: -1 });              // list + range queries
+transactionSchema.index({ shopId: 1, deletedAt: 1, type: 1, date: -1 });     // type filter
+transactionSchema.index({ shopId: 1, deletedAt: 1, staffId: 1, date: -1 });  // staff filter
+transactionSchema.index({ shopId: 1, deletedAt: 1, payMode: 1 });            // pay mode filter
+transactionSchema.index({ shopId: 1, sourceId: 1, sourceType: 1 });          // mirror tx lookups
+transactionSchema.index({ shopId: 1, linkedCustomerId: 1, date: -1 });       // customer wallet
 
 export default mongoose.model('Transaction', transactionSchema);

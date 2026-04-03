@@ -26,12 +26,16 @@ const purchaseSchema = new mongoose.Schema({
   items:       { type: [purchaseItemSchema], required: true },
   totalAmount: { type: Number, required: true },
   paidAmount:  { type: Number, default: 0 },
-  balance:     { type: Number, required: true },   // totalAmount - paidAmount
+  balance:     { type: Number, required: true },
   status:      { type: String, enum: ['pending', 'partial', 'paid'], default: 'pending' },
   date:        { type: Date, required: true },
   notes:       { type: String, default: '' },
   payments:    { type: [purchasePaymentSchema], default: [] },
   recordedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
+
+purchaseSchema.index({ shopId: 1, date: -1 });                // list + date range
+purchaseSchema.index({ shopId: 1, status: 1, date: -1 });    // status filter
+purchaseSchema.index({ shopId: 1, vendor: 1, status: 1 });   // vendor + open-purchase lookup
 
 export default mongoose.model('Purchase', purchaseSchema);

@@ -96,7 +96,7 @@ const Customers = () => {
       if (createdFrom)   params.createdFrom = createdFrom
       if (createdTo)     params.createdTo   = createdTo
       const res = await api.get('/customers', { params })
-      setCustomers(res.data)
+      setCustomers(res.data.customers ?? res.data)
     } catch {
       setError('Failed to load customers')
     } finally {

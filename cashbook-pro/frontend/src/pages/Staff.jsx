@@ -146,7 +146,7 @@ const Staff = () => {
     setPanelLoading(true)
     try {
       const res = await api.get('/salaries', { params: { staffId, month, year } })
-      setPanelSalaries(res.data)
+      setPanelSalaries(res.data.salaries ?? res.data)
     } catch { setPanelSalaries([]) }
     finally { setPanelLoading(false) }
     try {

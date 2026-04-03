@@ -61,9 +61,20 @@ export default async function purchaseRoutes(fastify) {
       payments, recordedBy: userId,
     });
 
-    // Auto-update stock: add quantity to existing item or create new
+    // Batch-fetch all matching stock items in ONE query instead of N queries
+    const existingStocks = await Stock.find({
+      shopId,
+      $or: processedItems.map(i => ({
+        name: { $regex: `^${i.productName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+      })),
+    });
+    const stockByName = {};
+    for (const s of existingStocks) stockByName[s.name.toLowerCase()] = s;
+
+    // Process items sequentially (saves are order-dependent for quantity tracking)
     for (const item of processedItems) {
-      let stockItem = await Stock.findOne({ shopId, name: { $regex: `^${item.productName}$`, $options: 'i' } });
+      const key = item.productName.trim().toLowerCase();
+      let stockItem = stockByName[key];
 
       if (stockItem) {
         const quantityBefore = stockItem.quantity;
@@ -79,11 +90,9 @@ export default async function purchaseRoutes(fastify) {
           purchaseId: purchase._id,
         });
 
-        // Link stockId back to purchase item
-        const idx = purchase.items.findIndex(pi => pi.productName.toLowerCase() === item.productName.toLowerCase());
+        const idx = purchase.items.findIndex(pi => pi.productName.toLowerCase() === key);
         if (idx !== -1) purchase.items[idx].stockId = stockItem._id;
       } else {
-        // Create new stock item
         stockItem = await Stock.create({
           shopId, name: item.productName.trim(),
           category: item.category?.trim() || 'General',
@@ -91,6 +100,8 @@ export default async function purchaseRoutes(fastify) {
           unit: item.unit || 'pcs',
           pricePerUnit: Number(item.pricePerUnit),
         });
+        // Cache for subsequent items with same name in this purchase
+        stockByName[key] = stockItem;
 
         await StockMovement.create({
           shopId, stockId: stockItem._id, stockName: stockItem.name, stockCategory: stockItem.category,
@@ -100,7 +111,7 @@ export default async function purchaseRoutes(fastify) {
           purchaseId: purchase._id,
         });
 
-        const idx = purchase.items.findIndex(pi => pi.productName.toLowerCase() === item.productName.toLowerCase());
+        const idx = purchase.items.findIndex(pi => pi.productName.toLowerCase() === key);
         if (idx !== -1) purchase.items[idx].stockId = stockItem._id;
       }
     }
@@ -125,6 +136,16 @@ export default async function purchaseRoutes(fastify) {
 
     // Update items + adjust stock if items provided
     if (items && items.length > 0) {
+      // Batch-fetch all stock items needed for this edit in ONE query
+      const editStocks = await Stock.find({
+        shopId,
+        $or: items.map(i => ({
+          name: { $regex: `^${i.productName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+        })),
+      });
+      const editStockByName = {};
+      for (const s of editStocks) editStockByName[s.name.toLowerCase()] = s;
+
       for (const newItem of items) {
         const oldItem = purchase.items.find(
           pi => pi.productName.toLowerCase() === newItem.productName.toLowerCase()
@@ -134,7 +155,7 @@ export default async function purchaseRoutes(fastify) {
         const delta  = newQty - oldQty;
 
         if (delta !== 0 || !oldItem) {
-          let stockItem = await Stock.findOne({ shopId, name: { $regex: `^${newItem.productName}$`, $options: 'i' } });
+          let stockItem = editStockByName[newItem.productName.trim().toLowerCase()];
           if (stockItem) {
             if (delta !== 0) {
               const quantityBefore = stockItem.quantity;
