@@ -21,6 +21,7 @@ const purchasePaymentSchema = new mongoose.Schema({
 const purchaseSchema = new mongoose.Schema({
   shopId:      { type: String, required: true, index: true },
   vendor:      { type: String, required: true },
+  billNo:      { type: String, default: '' },
   gstNo:       { type: String, default: '' },
   items:       { type: [purchaseItemSchema], required: true },
   totalAmount: { type: Number, required: true },

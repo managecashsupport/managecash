@@ -36,7 +36,7 @@ export default async function purchaseRoutes(fastify) {
 
   // ── POST /purchases — create ──
   fastify.post('/', adminAuth, async (request, reply) => {
-    const { vendor, gstNo, items, date, notes, initialPayment, initialPayMode } = request.body;
+    const { vendor, billNo, gstNo, items, date, notes, initialPayment, initialPayMode } = request.body;
     const { shopId, userId } = request.user;
 
     if (!vendor) return reply.status(400).send({ error: 'Vendor name is required' });
@@ -55,7 +55,7 @@ export default async function purchaseRoutes(fastify) {
     const payments = paid > 0 ? [{ amount: paid, note: 'Initial payment', payMode: initialPayMode || 'cash', date: date ? new Date(date) : new Date(), recordedBy: userId }] : [];
 
     const purchase = await Purchase.create({
-      shopId, vendor: vendor.trim(), gstNo: gstNo?.trim() || '',
+      shopId, vendor: vendor.trim(), billNo: billNo?.trim() || '', gstNo: gstNo?.trim() || '',
       items: processedItems, totalAmount, paidAmount: paid, balance, status,
       date: date ? new Date(date) : new Date(), notes: notes || '',
       payments, recordedBy: userId,
@@ -111,13 +111,14 @@ export default async function purchaseRoutes(fastify) {
 
   // ── PUT /purchases/:id — edit details + items ──
   fastify.put('/:id', adminAuth, async (request, reply) => {
-    const { vendor, gstNo, notes, date, items } = request.body;
+    const { vendor, billNo, gstNo, notes, date, items } = request.body;
     const { shopId, userId } = request.user;
 
     const purchase = await Purchase.findOne({ _id: request.params.id, shopId });
     if (!purchase) return reply.status(404).send({ error: 'Purchase not found' });
 
     if (vendor) purchase.vendor = vendor.trim();
+    if (billNo !== undefined) purchase.billNo = billNo.trim();
     if (gstNo  !== undefined) purchase.gstNo = gstNo.trim();
     if (notes  !== undefined) purchase.notes = notes;
     if (date)  purchase.date  = new Date(date);

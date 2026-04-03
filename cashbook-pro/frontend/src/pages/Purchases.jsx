@@ -54,7 +54,7 @@ export default function Purchases() {
 
   // Add modal
   const [showAdd, setShowAdd]       = useState(false)
-  const [addForm, setAddForm]       = useState({ vendor: '', gstNo: '', date: new Date().toISOString().split('T')[0], notes: '', initialPayment: '', initialPayMode: 'cash' })
+  const [addForm, setAddForm]       = useState({ vendor: '', billNo: '', gstNo: '', date: new Date().toISOString().split('T')[0], notes: '', initialPayment: '', initialPayMode: 'cash' })
   const [addItems, setAddItems]     = useState([{ ...emptyItem }])
   const [addError, setAddError]     = useState('')
   const [addLoading, setAddLoading] = useState(false)
@@ -79,7 +79,7 @@ export default function Purchases() {
 
   // Edit modal
   const [editTarget, setEditTarget] = useState(null)
-  const [editForm, setEditForm]     = useState({ vendor: '', gstNo: '', notes: '', date: '' })
+  const [editForm, setEditForm]     = useState({ vendor: '', billNo: '', gstNo: '', notes: '', date: '' })
   const [editItems, setEditItems]   = useState([])
   const [editError, setEditError]   = useState('')
   const [editLoading, setEditLoading] = useState(false)
@@ -135,7 +135,7 @@ export default function Purchases() {
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
 
   const resetAddForm = () => {
-    setAddForm({ vendor: '', gstNo: '', date: new Date().toISOString().split('T')[0], notes: '', initialPayment: '', initialPayMode: 'cash' })
+    setAddForm({ vendor: '', billNo: '', gstNo: '', date: new Date().toISOString().split('T')[0], notes: '', initialPayment: '', initialPayMode: 'cash' })
     setAddItems([{ ...emptyItem }])
     setVendorInput('')
     setOpenPurchase(null)
@@ -236,7 +236,7 @@ export default function Purchases() {
   // ── Edit ──
   const openEdit = (p) => {
     setEditTarget(p)
-    setEditForm({ vendor: p.vendor, gstNo: p.gstNo || '', notes: p.notes || '', date: p.date.split('T')[0] })
+    setEditForm({ vendor: p.vendor, billNo: p.billNo || '', gstNo: p.gstNo || '', notes: p.notes || '', date: p.date.split('T')[0] })
     setEditItems(p.items.map(it => ({ productName: it.productName, quantity: it.quantity, pricePerUnit: it.pricePerUnit, unit: it.unit || 'pcs', category: it.category || '' })))
     setEditError('')
   }
@@ -344,6 +344,7 @@ export default function Purchases() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p className="font-semibold text-slate-900">{p.vendor}</p>
+                    {p.billNo && <span className="text-xs text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">#{p.billNo}</span>}
                     {p.gstNo && <span className="text-xs text-slate-400 font-mono">GST: {p.gstNo}</span>}
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLE[p.status]}`}>{p.status}</span>
                   </div>
@@ -484,6 +485,14 @@ export default function Purchases() {
                   {checkingVendor && <p className="text-xs text-slate-400 mt-1">Checking vendor…</p>}
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Bill / Invoice No <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <input type="text" className="input-field" placeholder="e.g. INV-2024-001"
+                    value={addForm.billNo}
+                    onChange={e => setAddForm({ ...addForm, billNo: e.target.value })}
+                    disabled={vendorMode === 'existing'}
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">GST No <span className="text-slate-400 font-normal">(optional)</span></label>
                   <input type="text" className="input-field" placeholder="22AAAAA0000A1Z5" value={addForm.gstNo}
@@ -691,6 +700,7 @@ export default function Purchases() {
             {editError && <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-xl">{editError}</div>}
             <form onSubmit={handleEdit} className="space-y-4">
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">Vendor *</label><input type="text" required className="input-field" value={editForm.vendor} onChange={e => setEditForm({ ...editForm, vendor: e.target.value })} /></div>
+              <div><label className="block text-sm font-medium text-slate-700 mb-1.5">Bill / Invoice No</label><input type="text" className="input-field" placeholder="e.g. INV-2024-001" value={editForm.billNo} onChange={e => setEditForm({ ...editForm, billNo: e.target.value })} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">GST No</label><input type="text" className="input-field" value={editForm.gstNo} onChange={e => setEditForm({ ...editForm, gstNo: e.target.value })} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">Date</label><input type="date" className="input-field" value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">Notes</label><input type="text" className="input-field" value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} /></div>
