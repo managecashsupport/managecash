@@ -22,21 +22,21 @@ const STATUS_BORDER = {
   paid:    '',
 }
 
-const emptyItem = { productName: '', category: '', subCategory: '', quantity: '', unit: 'pcs', pricePerUnit: '' }
+const emptyItem = { productName: '', category: '', subCategory: '', otherSubCategory: '', quantity: '', unit: 'pcs', pricePerUnit: '' }
 const UNITS = ['pcs', 'kg', 'g', 'litre', 'ml', 'box', 'dozen', 'packet', 'roll', 'set', 'pair']
 
 const CATEGORIES = {
-  'Electrical':   ['Wiring', 'Switches', 'Fans', 'Bulbs / Tubelight', 'Cables', 'Meters', 'Other'],
-  'Furniture':    ['Chair', 'Table', 'Bed', 'Almirah', 'Sofa', 'Rack / Shelf', 'Other'],
-  'Grocery':      ['Grains / Daal', 'Oil / Ghee', 'Sugar / Salt', 'Spices', 'Biscuit / Snacks', 'Other'],
-  'Hardware':     ['Nails / Screws', 'Paint', 'Cement / Sand', 'Tools', 'Locks / Hinges', 'Pipes', 'Other'],
-  'Clothing':     ['Shirt / T-Shirt', 'Pant / Jean', 'Saree / Dupatta', 'Undergarments', 'Other'],
-  'Electronics':  ['Mobile', 'TV / Monitor', 'Fridge / AC', 'Fan / Cooler', 'Cables / Charger', 'Other'],
-  'Medicine':     ['Tablet', 'Syrup', 'Injection / Drip', 'Ointment', 'Other'],
-  'Stationery':   ['Paper / Register', 'Pen / Pencil', 'Ink / Toner', 'Files / Folders', 'Other'],
-  'Packaging':    ['Bags / Pouches', 'Boxes', 'Tape / Rope', 'Labels', 'Other'],
-  'Cleaning':     ['Broom / Mop', 'Phenyl / Soap', 'Dustbin', 'Other'],
-  'Other':        ['General', 'Miscellaneous'],
+  'Electrical':   ['Wiring', 'Switches', 'Fans', 'Bulbs', 'Tubelight', 'Cables', 'Meters', 'Other'],
+  'Furniture':    ['Chair', 'Table', 'Bed', 'Almirah', 'Sofa', 'Rack', 'Shelf', 'Other'],
+  'Grocery':      ['Grains', 'Daal', 'Oil', 'Ghee', 'Sugar', 'Salt', 'Spices', 'Biscuits', 'Snacks', 'Other'],
+  'Hardware':     ['Nails', 'Screws', 'Paint', 'Cement', 'Sand', 'Tools', 'Locks', 'Hinges', 'Pipes', 'Other'],
+  'Clothing':     ['Shirt', 'T-Shirt', 'Pant', 'Jeans', 'Saree', 'Dupatta', 'Undergarments', 'Other'],
+  'Electronics':  ['Mobile', 'TV', 'Monitor', 'Fridge', 'AC', 'Fan', 'Cooler', 'Cables', 'Charger', 'Other'],
+  'Medicine':     ['Tablet', 'Syrup', 'Injection', 'Drip', 'Ointment', 'Other'],
+  'Stationery':   ['Paper', 'Register', 'Pen', 'Pencil', 'Ink', 'Toner', 'Files', 'Folders', 'Other'],
+  'Packaging':    ['Bags', 'Pouches', 'Boxes', 'Tape', 'Rope', 'Labels', 'Other'],
+  'Cleaning':     ['Broom', 'Mop', 'Phenyl', 'Soap', 'Dustbin', 'Other'],
+  'Other':        ['Other'],
 }
 
 export default function Purchases() {
@@ -185,7 +185,8 @@ export default function Purchases() {
   const addItemRow    = () => setAddItems(p => [...p, { ...emptyItem }])
   const removeItemRow = (i) => setAddItems(p => p.filter((_, idx) => idx !== i))
   const updateItem    = (i, field, val) => setAddItems(p => p.map((it, idx) => idx === i ? { ...it, [field]: val } : it))
-  const changeItemCategory = (i, cat) => setAddItems(p => p.map((it, idx) => idx === i ? { ...it, category: cat, subCategory: '' } : it))
+  const changeItemCategory = (i, cat) => setAddItems(p => p.map((it, idx) => idx === i ? { ...it, category: cat, subCategory: '', otherSubCategory: '' } : it))
+  const changeItemSubCategory = (i, val) => setAddItems(p => p.map((it, idx) => idx === i ? { ...it, subCategory: val, otherSubCategory: '' } : it))
 
   const totalCalc = addItems.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.pricePerUnit) || 0), 0)
 
@@ -198,10 +199,13 @@ export default function Purchases() {
 
     setAddLoading(true)
     try {
-      const itemsToSend = addItems.map(it => ({
-        ...it,
-        category: it.subCategory ? `${it.category} > ${it.subCategory}` : (it.category || 'Other'),
-      }))
+      const itemsToSend = addItems.map(it => {
+        const resolvedSub = it.subCategory === 'Other' ? (it.otherSubCategory?.trim() || 'Other') : it.subCategory
+        return {
+          ...it,
+          category: resolvedSub ? `${it.category} > ${resolvedSub}` : (it.category || 'Other'),
+        }
+      })
 
       if (vendorMode === 'existing' && openPurchase) {
         await api.put(`/purchases/${openPurchase._id}`, { items: itemsToSend })
@@ -569,10 +573,19 @@ export default function Purchases() {
                         </div>
                         <div>
                           <label className="block text-xs text-slate-500 mb-1">Sub-Category</label>
-                          <select className="input-field text-sm" value={it.subCategory} onChange={e => updateItem(i, 'subCategory', e.target.value)} disabled={!it.category}>
+                          <select className="input-field text-sm" value={it.subCategory} onChange={e => changeItemSubCategory(i, e.target.value)} disabled={!it.category}>
                             <option value="">-- Select --</option>
                             {(CATEGORIES[it.category] || []).map(sub => <option key={sub} value={sub}>{sub}</option>)}
                           </select>
+                          {it.subCategory === 'Other' && (
+                            <input
+                              type="text"
+                              className="input-field text-sm mt-1.5"
+                              placeholder="Specify sub-category…"
+                              value={it.otherSubCategory}
+                              onChange={e => updateItem(i, 'otherSubCategory', e.target.value)}
+                            />
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
