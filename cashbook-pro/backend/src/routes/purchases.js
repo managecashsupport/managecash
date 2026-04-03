@@ -269,6 +269,30 @@ export default async function purchaseRoutes(fastify) {
     return reply.send({ success: true });
   });
 
+  // ── GET /purchases/vendors — distinct vendor names for this tenant ──
+  fastify.get('/vendors', adminAuth, async (request, reply) => {
+    const { shopId } = request.user;
+    const vendors = await Purchase.distinct('vendor', { shopId });
+    return reply.send({ vendors: vendors.sort((a, b) => a.localeCompare(b)) });
+  });
+
+  // ── GET /purchases/open-by-vendor — most recent pending/partial purchase for a vendor ──
+  fastify.get('/open-by-vendor', adminAuth, async (request, reply) => {
+    const { shopId } = request.user;
+    const { vendor } = request.query;
+    if (!vendor) return reply.status(400).send({ error: 'vendor is required' });
+
+    // Escape regex special chars so vendor names with dots/parens etc. are safe
+    const escaped = vendor.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const purchase = await Purchase.findOne({
+      shopId,
+      vendor: { $regex: `^${escaped}$`, $options: 'i' },
+      status: { $in: ['pending', 'partial'] },
+    }).sort({ date: -1 });
+
+    return reply.send({ purchase: purchase || null });
+  });
+
   // ── GET /purchases/summary — totals ──
   fastify.get('/summary', adminAuth, async (request, reply) => {
     const { shopId } = request.user;

@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../services/api'
 import {
   ShoppingCartIcon, PlusIcon, PencilIcon, TrashIcon, XMarkIcon,
   CheckCircleIcon, ExclamationTriangleIcon, BanknotesIcon,
-  MagnifyingGlassIcon, FunnelIcon, ClockIcon,
+  MagnifyingGlassIcon, FunnelIcon, ClockIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline'
 import useDeleteWithUndo from '../hooks/useDeleteWithUndo'
 import UndoToast from '../components/UndoToast'
@@ -59,6 +59,15 @@ export default function Purchases() {
   const [addError, setAddError]     = useState('')
   const [addLoading, setAddLoading] = useState(false)
 
+  // Vendor autocomplete
+  const [vendors, setVendors]               = useState([])
+  const [vendorInput, setVendorInput]       = useState('')
+  const [showVendorDrop, setShowVendorDrop] = useState(false)
+  const [openPurchase, setOpenPurchase]     = useState(null)   // existing pending/partial purchase for this vendor
+  const [vendorMode, setVendorMode]         = useState(null)   // null | 'existing' | 'new'
+  const [checkingVendor, setCheckingVendor] = useState(false)
+  const vendorRef = useRef(null)
+
   // Payment modal
   const [payTarget, setPayTarget]   = useState(null)
   const [payAmount, setPayAmount]   = useState('')
@@ -98,12 +107,79 @@ export default function Purchases() {
     finally { setLoading(false) }
   }, [filterStatus, search, dateFrom, dateTo])
 
+  const fetchVendors = useCallback(async () => {
+    try {
+      const res = await api.get('/purchases/vendors')
+      setVendors(res.data.vendors)
+    } catch {}
+  }, [])
+
   useEffect(() => {
     const t = setTimeout(fetchPurchases, 300)
     return () => clearTimeout(t)
   }, [fetchPurchases])
 
+  useEffect(() => { fetchVendors() }, [fetchVendors])
+
+  // Close vendor dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (vendorRef.current && !vendorRef.current.contains(e.target)) {
+        setShowVendorDrop(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+
+  const resetAddForm = () => {
+    setAddForm({ vendor: '', gstNo: '', date: new Date().toISOString().split('T')[0], notes: '', initialPayment: '', initialPayMode: 'cash' })
+    setAddItems([{ ...emptyItem }])
+    setVendorInput('')
+    setOpenPurchase(null)
+    setVendorMode(null)
+    setAddError('')
+  }
+
+  // ── Vendor autocomplete ──
+  const filteredVendors = vendors.filter(v =>
+    vendorInput.length > 0 && v.toLowerCase().includes(vendorInput.toLowerCase())
+  )
+  const isExactVendorMatch = vendors.some(v => v.toLowerCase() === vendorInput.trim().toLowerCase())
+
+  const checkOpenPurchase = async (vendorName) => {
+    const trimmed = vendorName.trim()
+    if (!trimmed) return
+    const exists = vendors.some(v => v.toLowerCase() === trimmed.toLowerCase())
+    if (!exists) { setOpenPurchase(null); setVendorMode('new'); return }
+
+    setCheckingVendor(true)
+    try {
+      const res = await api.get('/purchases/open-by-vendor', { params: { vendor: trimmed } })
+      if (res.data.purchase) {
+        setOpenPurchase(res.data.purchase)
+        setVendorMode(null) // force user to choose
+      } else {
+        setOpenPurchase(null)
+        setVendorMode('new')
+      }
+    } catch {
+      setOpenPurchase(null)
+    } finally {
+      setCheckingVendor(false)
+    }
+  }
+
+  const handleVendorSelect = (name) => {
+    setVendorInput(name)
+    setAddForm(f => ({ ...f, vendor: name }))
+    setShowVendorDrop(false)
+    setOpenPurchase(null)
+    setVendorMode(null)
+    checkOpenPurchase(name)
+  }
 
   // ── Add ──
   const addItemRow    = () => setAddItems(p => [...p, { ...emptyItem }])
@@ -114,21 +190,31 @@ export default function Purchases() {
   const totalCalc = addItems.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.pricePerUnit) || 0), 0)
 
   const handleAdd = async (e) => {
-    e.preventDefault(); setAddError('')
+    e.preventDefault()
+    setAddError('')
     if (!addForm.vendor.trim()) return setAddError('Vendor name is required')
     if (addItems.some(it => !it.productName || !it.quantity || !it.pricePerUnit)) return setAddError('Fill all item fields')
+    if (openPurchase && !vendorMode) return setAddError('Choose whether to add to the existing purchase or start a new order')
+
     setAddLoading(true)
     try {
       const itemsToSend = addItems.map(it => ({
         ...it,
         category: it.subCategory ? `${it.category} > ${it.subCategory}` : (it.category || 'Other'),
       }))
-      await api.post('/purchases', { ...addForm, items: itemsToSend })
+
+      if (vendorMode === 'existing' && openPurchase) {
+        await api.put(`/purchases/${openPurchase._id}`, { items: itemsToSend })
+        flash('Items added to existing purchase & stock updated')
+      } else {
+        await api.post('/purchases', { ...addForm, items: itemsToSend })
+        flash('Purchase recorded & stock updated')
+      }
+
       setShowAdd(false)
-      setAddForm({ vendor: '', gstNo: '', date: new Date().toISOString().split('T')[0], notes: '', initialPayment: '', initialPayMode: 'cash' })
-      setAddItems([{ ...emptyItem }])
-      flash('Purchase recorded & stock updated')
+      resetAddForm()
       fetchPurchases()
+      fetchVendors()
     } catch (err) { setAddError(err.response?.data?.error || 'Failed to save') }
     finally { setAddLoading(false) }
   }
@@ -174,7 +260,7 @@ export default function Purchases() {
     scheduleDelete({
       label: `Purchase deleted — ${p.vendor}`,
       onConfirm: async () => {
-        try { await api.delete(`/purchases/${p._id}`); fetchPurchases() }
+        try { await api.delete(`/purchases/${p._id}`); fetchPurchases(); fetchVendors() }
         catch { setError('Failed to delete purchase') }
       },
       onUndo: () => setRemovedIds(prev => { const s = new Set(prev); s.delete(p._id); return s }),
@@ -289,7 +375,6 @@ export default function Purchases() {
               {/* Expanded detail */}
               {expanded === p._id && (
                 <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 space-y-3">
-                  {/* Items table */}
                   <div>
                     <p className="text-xs font-bold text-slate-500 uppercase mb-2">Items</p>
                     <table className="w-full text-sm">
@@ -307,7 +392,6 @@ export default function Purchases() {
                       </tbody>
                     </table>
                   </div>
-                  {/* Payment history */}
                   {p.payments.length > 0 && (
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase mb-2">Payment History</p>
@@ -334,33 +418,124 @@ export default function Purchases() {
       {/* ── Add Purchase Modal ── */}
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAdd(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowAdd(false); resetAddForm() }} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-slate-900">New Purchase</h2>
-              <button onClick={() => setShowAdd(false)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100"><XMarkIcon className="h-5 w-5" /></button>
+              <button onClick={() => { setShowAdd(false); resetAddForm() }} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100"><XMarkIcon className="h-5 w-5" /></button>
             </div>
             {addError && <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2.5 rounded-xl text-sm"><ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />{addError}</div>}
+
             <form onSubmit={handleAdd} className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 md:col-span-1">
+
+                {/* Vendor autocomplete */}
+                <div className="col-span-2 md:col-span-1" ref={vendorRef}>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Vendor / Shop Name *</label>
-                  <input type="text" required className="input-field" placeholder="e.g. Sharma Traders" value={addForm.vendor} onChange={e => setAddForm({ ...addForm, vendor: e.target.value })} />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      autoComplete="off"
+                      className="input-field pr-8"
+                      placeholder="e.g. Sharma Traders"
+                      value={vendorInput}
+                      onChange={e => {
+                        const val = e.target.value
+                        setVendorInput(val)
+                        setAddForm(f => ({ ...f, vendor: val }))
+                        setShowVendorDrop(val.length > 0)
+                        setOpenPurchase(null)
+                        setVendorMode(null)
+                      }}
+                      onFocus={() => vendorInput.length > 0 && setShowVendorDrop(true)}
+                      onBlur={() => {
+                        // Small delay so dropdown click registers first
+                        setTimeout(() => {
+                          setShowVendorDrop(false)
+                          if (vendorInput.trim()) checkOpenPurchase(vendorInput)
+                        }, 180)
+                      }}
+                    />
+                    <ChevronDownIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+
+                    {/* Dropdown */}
+                    {showVendorDrop && (filteredVendors.length > 0 || vendorInput) && (
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-slate-200 max-h-48 overflow-y-auto">
+                        {filteredVendors.map(v => (
+                          <button
+                            key={v}
+                            type="button"
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 text-slate-700 flex items-center justify-between"
+                            onMouseDown={() => handleVendorSelect(v)}
+                          >
+                            <span>{v}</span>
+                            <span className="text-xs text-slate-400">existing</span>
+                          </button>
+                        ))}
+                        {vendorInput && !isExactVendorMatch && (
+                          <div className="px-4 py-2.5 text-xs text-blue-600 font-medium border-t border-slate-100">
+                            New vendor: "{vendorInput}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {checkingVendor && <p className="text-xs text-slate-400 mt-1">Checking vendor…</p>}
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">GST No <span className="text-slate-400 font-normal">(optional)</span></label>
-                  <input type="text" className="input-field" placeholder="22AAAAA0000A1Z5" value={addForm.gstNo} onChange={e => setAddForm({ ...addForm, gstNo: e.target.value })} />
+                  <input type="text" className="input-field" placeholder="22AAAAA0000A1Z5" value={addForm.gstNo}
+                    onChange={e => setAddForm({ ...addForm, gstNo: e.target.value })}
+                    disabled={vendorMode === 'existing'}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Purchase Date *</label>
-                  <input type="date" required className="input-field" value={addForm.date} onChange={e => setAddForm({ ...addForm, date: e.target.value })} />
+                  <input type="date" required className="input-field" value={addForm.date}
+                    onChange={e => setAddForm({ ...addForm, date: e.target.value })} />
                 </div>
               </div>
+
+              {/* Existing open purchase banner */}
+              {openPurchase && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-amber-900 mb-0.5">
+                    Open purchase found for {openPurchase.vendor}
+                  </p>
+                  <p className="text-xs text-amber-700 mb-3">
+                    {openPurchase.items.length} item(s) · Total {fmt(openPurchase.totalAmount)} · Due {fmt(openPurchase.balance)} · {fmtDate(openPurchase.date)}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setVendorMode('existing')}
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${vendorMode === 'existing' ? 'bg-amber-500 border-amber-500 text-white' : 'border-amber-300 text-amber-700 hover:bg-amber-100'}`}
+                    >
+                      Add to existing purchase
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVendorMode('new')}
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${vendorMode === 'new' ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      New separate order
+                    </button>
+                  </div>
+                  {vendorMode === 'existing' && (
+                    <p className="text-xs text-amber-700 mt-2">Items below will be added to the existing purchase. Use the payment button on that entry to record payment.</p>
+                  )}
+                </div>
+              )}
 
               {/* Items */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-slate-700">Items *</label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Items to add *
+                    {vendorMode === 'existing' && <span className="ml-2 text-xs font-normal text-amber-600">(will be added to existing purchase)</span>}
+                  </label>
                   <button type="button" onClick={addItemRow} className="text-xs text-blue-600 font-semibold hover:underline">+ Add Item</button>
                 </div>
                 <div className="space-y-3">
@@ -416,34 +591,41 @@ export default function Purchases() {
                 <div className="mt-2 text-right text-sm font-semibold text-slate-700">Total: {fmt(totalCalc)}</div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Initial Payment <span className="text-slate-400 font-normal">(optional)</span></label>
-                  <input type="number" min="0" step="0.01" className="input-field" placeholder="0.00" value={addForm.initialPayment} onChange={e => setAddForm({ ...addForm, initialPayment: e.target.value })} />
-                  {addForm.initialPayment && <p className="text-xs text-orange-600 mt-1">Remaining: {fmt(totalCalc - Number(addForm.initialPayment))}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Notes <span className="text-slate-400 font-normal">(optional)</span></label>
-                  <input type="text" className="input-field" placeholder="Any notes…" value={addForm.notes} onChange={e => setAddForm({ ...addForm, notes: e.target.value })} />
-                </div>
-              </div>
-              {addForm.initialPayment && Number(addForm.initialPayment) > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Pay Mode for Initial Payment</label>
-                  <div className="flex gap-2">
-                    {['cash', 'online'].map(m => (
-                      <button key={m} type="button" onClick={() => setAddForm({ ...addForm, initialPayMode: m })}
-                        className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-all ${addForm.initialPayMode === m ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                        {m === 'cash' ? '💵 Cash' : '📱 Online'}
-                      </button>
-                    ))}
+              {/* Initial payment — only for new purchases */}
+              {vendorMode !== 'existing' && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Initial Payment <span className="text-slate-400 font-normal">(optional)</span></label>
+                      <input type="number" min="0" step="0.01" className="input-field" placeholder="0.00" value={addForm.initialPayment} onChange={e => setAddForm({ ...addForm, initialPayment: e.target.value })} />
+                      {addForm.initialPayment && <p className="text-xs text-orange-600 mt-1">Remaining: {fmt(totalCalc - Number(addForm.initialPayment))}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Notes <span className="text-slate-400 font-normal">(optional)</span></label>
+                      <input type="text" className="input-field" placeholder="Any notes…" value={addForm.notes} onChange={e => setAddForm({ ...addForm, notes: e.target.value })} />
+                    </div>
                   </div>
-                </div>
+                  {addForm.initialPayment && Number(addForm.initialPayment) > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Pay Mode for Initial Payment</label>
+                      <div className="flex gap-2">
+                        {['cash', 'online'].map(m => (
+                          <button key={m} type="button" onClick={() => setAddForm({ ...addForm, initialPayMode: m })}
+                            className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-all ${addForm.initialPayMode === m ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                            {m === 'cash' ? '💵 Cash' : '📱 Online'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button type="submit" disabled={addLoading} className="flex-1 btn-primary py-2.5">{addLoading ? 'Saving…' : 'Save Purchase'}</button>
+                <button type="button" onClick={() => { setShowAdd(false); resetAddForm() }} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={addLoading} className="flex-1 btn-primary py-2.5">
+                  {addLoading ? 'Saving…' : vendorMode === 'existing' ? 'Add to Existing Purchase' : 'Save Purchase'}
+                </button>
               </div>
             </form>
           </div>
@@ -512,7 +694,6 @@ export default function Purchases() {
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">GST No</label><input type="text" className="input-field" value={editForm.gstNo} onChange={e => setEditForm({ ...editForm, gstNo: e.target.value })} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">Date</label><input type="date" className="input-field" value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1.5">Notes</label><input type="text" className="input-field" value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} /></div>
-              {/* Items */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Items</label>
                 <div className="space-y-2">

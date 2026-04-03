@@ -21,47 +21,39 @@ export const AuthProvider = ({ children }) => {
     checkSession();
   }, []);
 
-  // Auto-refresh token 1 minute before expiry
+  // Auto-refresh token 1 minute before expiry — recursive chain
   useEffect(() => {
     let refreshTimer;
+    let cancelled = false;
 
-    if (isAuthenticated && window.__accessToken) {
+    const scheduleRefresh = (token) => {
       try {
-        const payload = JSON.parse(atob(window.__accessToken.split('.')[1]));
-        const expiryTime = payload.exp * 1000;
-        const now = Date.now();
-        const timeUntilExpiry = expiryTime - now;
-        
-        // Refresh 1 minute before expiry
-        const refreshTime = Math.max(60000, timeUntilExpiry - 60000);
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const msUntilExpiry = payload.exp * 1000 - Date.now();
+        const delay = Math.max(30000, msUntilExpiry - 60000); // refresh 1 min before expiry, min 30s
 
         refreshTimer = setTimeout(async () => {
+          if (cancelled) return;
           try {
             const response = await api.post('/auth/refresh');
             window.__accessToken = response.data.accessToken;
-            
-            // Set next refresh timer
-            const newPayload = JSON.parse(atob(window.__accessToken.split('.')[1]));
-            const newExpiryTime = newPayload.exp * 1000;
-            const nextRefreshTime = Math.max(60000, newExpiryTime - Date.now() - 60000);
-            
-            refreshTimer = setTimeout(() => {
-              // Token expired, redirect to login
-              logout();
-            }, nextRefreshTime);
-          } catch (error) {
+            scheduleRefresh(response.data.accessToken); // chain next refresh
+          } catch {
             logout();
           }
-        }, refreshTime);
-      } catch (error) {
-        console.error('Error setting up token refresh:', error);
+        }, delay);
+      } catch {
+        // malformed token — do nothing, let the next API call handle 401
       }
+    };
+
+    if (isAuthenticated && window.__accessToken) {
+      scheduleRefresh(window.__accessToken);
     }
 
     return () => {
-      if (refreshTimer) {
-        clearTimeout(refreshTimer);
-      }
+      cancelled = true;
+      clearTimeout(refreshTimer);
     };
   }, [isAuthenticated]);
 
