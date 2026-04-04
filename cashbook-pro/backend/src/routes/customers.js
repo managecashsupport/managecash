@@ -10,12 +10,18 @@ import { notifyCredit, notifyDebit } from '../services/whatsapp.js';
 
 // Auto-generate a customer ID: CUST001, CUST002, ...
 async function generateCustomerId(shopId) {
-  const last = await Customer.findOne({ shopId })
-    .sort({ createdAt: -1 })
-    .select('customerId');
-  if (!last) return 'CUST001';
-  const num = parseInt(last.customerId.replace(/\D/g, ''), 10) || 0;
-  return 'CUST' + String(num + 1).padStart(3, '0');
+  // Find all customers and pick the highest numeric suffix to avoid collisions
+  const all = await Customer.find({ shopId }).select('customerId').lean();
+  const maxNum = all.reduce((max, c) => {
+    const n = parseInt((c.customerId || '').replace(/\D/g, ''), 10);
+    return isNaN(n) ? max : Math.max(max, n);
+  }, 0);
+  // Keep incrementing until we find a free slot (handles rare race conditions)
+  let next = maxNum + 1;
+  while (await Customer.exists({ shopId, customerId: 'CUST' + String(next).padStart(3, '0') })) {
+    next++;
+  }
+  return 'CUST' + String(next).padStart(3, '0');
 }
 
 export default async function customerRoutes(fastify) {
