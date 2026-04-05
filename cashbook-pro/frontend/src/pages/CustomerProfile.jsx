@@ -236,8 +236,8 @@ const CustomerProfile = () => {
               </>
             ) : customer.balance < 0 ? (
               <>
-                <p className="text-3xl font-bold text-red-500">₹{Math.abs(customer.balance).toLocaleString('en-IN')}</p>
-                <p className="text-xs text-amber-600 font-semibold mt-0.5">loan outstanding</p>
+                <p className="text-3xl font-bold text-orange-500">₹{Math.abs(customer.balance).toLocaleString('en-IN')}</p>
+                <p className="text-xs text-orange-500 font-semibold mt-0.5">loan outstanding</p>
               </>
             ) : (
               <p className="text-3xl font-bold text-slate-400">Cleared</p>
@@ -355,13 +355,23 @@ const CustomerProfile = () => {
                 </div>
 
                 {/* Amount & Balance */}
-                <div className="flex-shrink-0 text-right">
+                <div className="flex-shrink-0 text-right space-y-1">
                   <p className={`text-base font-bold ${isCredit ? 'text-emerald-600' : 'text-red-500'}`}>
                     {isCredit ? '+' : '-'}{fmt(txn.amount)}
                   </p>
-                  <p className={`text-xs ${txn.balanceAfter >= 0 ? 'text-slate-400' : 'text-amber-600'}`}>
-                    bal: {fmt(txn.balanceAfter)}
-                  </p>
+                  {txn.balanceAfter < 0 ? (
+                    <span className="inline-block text-[11px] font-bold bg-orange-100 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">
+                      ₹{Math.abs(txn.balanceAfter).toLocaleString('en-IN')} due
+                    </span>
+                  ) : txn.balanceAfter === 0 ? (
+                    <span className="inline-block text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      Cleared
+                    </span>
+                  ) : (
+                    <span className="inline-block text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      ₹{txn.balanceAfter.toLocaleString('en-IN')} advance
+                    </span>
+                  )}
                 </div>
               </div>
               )
@@ -396,7 +406,7 @@ const CustomerProfile = () => {
 
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-5 ${modal === 'credit' ? 'bg-emerald-50' : 'bg-red-50'}`}>
               <p className="text-sm font-medium text-slate-700">Customer: <span className="font-bold">{customer.fullName}</span></p>
-              <p className={`ml-auto text-sm font-bold ${customer.balance > 0 ? 'text-emerald-600' : customer.balance < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+              <p className={`ml-auto text-sm font-bold ${customer.balance > 0 ? 'text-emerald-600' : customer.balance < 0 ? 'text-orange-500' : 'text-slate-400'}`}>
                 {customer.balance > 0 ? `₹${customer.balance.toLocaleString('en-IN')} advance`
                   : customer.balance < 0 ? `₹${Math.abs(customer.balance).toLocaleString('en-IN')} loan`
                   : 'Cleared'}

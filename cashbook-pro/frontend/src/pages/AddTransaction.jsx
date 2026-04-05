@@ -498,13 +498,19 @@ const AddTransaction = () => {
                           ID: <span className="font-mono font-semibold text-blue-600">{selectedCustomer.customerId}</span>
                           {selectedCustomer.village ? ` · ${selectedCustomer.village}` : ''}
                         </p>
-                        <p className={`text-xs font-semibold mt-0.5 ${selectedCustomer.balance < 0 ? 'text-red-500' : selectedCustomer.balance > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          Wallet: {selectedCustomer.balance > 0
-                            ? `₹${selectedCustomer.balance.toLocaleString('en-IN')} advance`
-                            : selectedCustomer.balance < 0
-                              ? `₹${Math.abs(selectedCustomer.balance).toLocaleString('en-IN')} loan due`
-                              : 'Cleared'}
-                        </p>
+                        {selectedCustomer.balance < 0 ? (
+                          <span className="inline-block mt-1 text-[11px] font-bold bg-orange-100 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">
+                            ₹{Math.abs(selectedCustomer.balance).toLocaleString('en-IN')} loan due
+                          </span>
+                        ) : selectedCustomer.balance === 0 ? (
+                          <span className="inline-block mt-1 text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            Cleared
+                          </span>
+                        ) : (
+                          <span className="inline-block mt-1 text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            ₹{selectedCustomer.balance.toLocaleString('en-IN')} advance
+                          </span>
+                        )}
                       </div>
                       <button type="button" onClick={clearCustomer}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
