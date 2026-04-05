@@ -179,11 +179,30 @@ export default async function transactionRoutes(fastify) {
 
       // Update customer wallet balance and record in passbook
       // Convention: balance > 0 = advance/credit, balance < 0 = loan
-      // type 'out' = goods given → reduces balance
-      // type 'in'  = customer pays → increases balance
+      // type 'out'                          → -amount (goods/money given to customer)
+      // type 'in'  no partial payment       → +amount (customer pays)
+      // type 'in'  partial payment (due>0)  → +(amount - totalAmount) = -dueAmount
+      //   because goods worth totalAmount were given AND amount was collected
       if (linkedCustomer) {
+        const totalAmountNum = totalAmount ? parseFloat(totalAmount) : null;
+        const dueAmountNum   = totalAmountNum && totalAmountNum > amountNum ? totalAmountNum - amountNum : 0;
+
+        let balanceDelta;
+        let walletType;
+        if (type === 'out') {
+          balanceDelta = -amountNum;
+          walletType   = 'sale';
+        } else if (dueAmountNum > 0) {
+          // Partial payment: goods given on credit, partial cash collected
+          // Net wallet impact = paid - total = -dueAmount
+          balanceDelta = amountNum - totalAmountNum;
+          walletType   = 'sale';
+        } else {
+          balanceDelta = amountNum;
+          walletType   = 'payment';
+        }
+
         const balanceBefore = linkedCustomer.balance;
-        const balanceDelta  = type === 'out' ? -amountNum : amountNum;
         linkedCustomer.balance += balanceDelta;
         linkedCustomer.isLoan = linkedCustomer.balance < 0;
         await linkedCustomer.save();
@@ -191,8 +210,8 @@ export default async function transactionRoutes(fastify) {
         await WalletTransaction.create({
           shopId: request.user.shopId,
           customerId: linkedCustomer._id,
-          type: type === 'out' ? 'sale' : 'payment',
-          amount: amountNum,
+          type: walletType,
+          amount: totalAmountNum || amountNum,   // show full price in passbook for sales
           balanceBefore,
           balanceAfter: linkedCustomer.balance,
           note: productDescription || (stockItem ? stockItem.name : '') || '',
@@ -552,6 +571,31 @@ export default async function transactionRoutes(fastify) {
     } catch (err) {
       console.error('Export error:', err);
       return reply.status(500).send({ error: 'Failed to export transactions' });
+    }
+  });
+
+  // PATCH /transactions/:id/pay-due — record a follow-up payment against a partial sale
+  // Reduces the original transaction's dueAmount; clears it when fully paid
+  fastify.patch('/:id/pay-due', { preHandler: [tenantResolver] }, async (request, reply) => {
+    try {
+      const { shopId } = request.user;
+      const { amount } = request.body;
+      if (!amount || parseFloat(amount) <= 0)
+        return reply.status(400).send({ error: 'Amount is required' });
+
+      const original = await Transaction.findOne({ _id: request.params.id, shopId, deletedAt: null });
+      if (!original) return reply.status(404).send({ error: 'Transaction not found' });
+      if (!original.dueAmount || original.dueAmount <= 0)
+        return reply.status(400).send({ error: 'No outstanding balance on this transaction' });
+
+      const paying    = parseFloat(amount);
+      const newDue    = Math.max(0, original.dueAmount - paying);
+      original.dueAmount = newDue || null;
+      await original.save();
+
+      return reply.send({ success: true, dueAmount: original.dueAmount, message: newDue === 0 ? 'Fully cleared' : `₹${newDue} still remaining` });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Failed to update due amount' });
     }
   });
 }

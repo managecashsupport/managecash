@@ -17,7 +17,8 @@ const transactionSchema = new mongoose.Schema({
   billNo:             { type: String, default: null },
   // Partial payment support
   totalAmount:        { type: Number, default: null },   // full price of the item/sale
-  dueAmount:          { type: Number, default: null },   // remaining = totalAmount - amount paid
+  dueAmount:          { type: Number, default: null },   // remaining = totalAmount - cumulative paid
+  parentTransactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction', default: null }, // follow-up payments link here
   // Stock linkage (optional — for any transaction type)
   stockId:            { type: mongoose.Schema.Types.ObjectId, ref: 'Stock', default: null },
   stockName:          { type: String, default: null },

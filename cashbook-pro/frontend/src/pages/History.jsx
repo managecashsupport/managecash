@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import useTransactions from '../hooks/useTransactions'
 import api from '../services/api'
-import { 
+import {
   MagnifyingGlassIcon,
   FunnelIcon,
   CalendarIcon,
@@ -18,7 +18,8 @@ import {
   ArrowUpTrayIcon,
   EyeIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline'
 import SearchBar from '../components/SearchBar'
 import useDeleteWithUndo from '../hooks/useDeleteWithUndo'
@@ -46,6 +47,40 @@ const History = () => {
   const [deleteError, setDeleteError] = useState('')
   const [removedIds, setRemovedIds] = useState(new Set())
   const { scheduleDelete, undoPending, undoCountdown, cancelUndo } = useDeleteWithUndo()
+
+  // Pay-due modal
+  const [payDueTx, setPayDueTx] = useState(null)   // the transaction with outstanding due
+  const [payDueAmount, setPayDueAmount] = useState('')
+  const [payDueLoading, setPayDueLoading] = useState(false)
+  const [payDueError, setPayDueError] = useState('')
+  const [payDueSuccess, setPayDueSuccess] = useState('')
+
+  const openPayDue = (tx) => {
+    setPayDueTx(tx)
+    setPayDueAmount(tx.dueAmount?.toString() || '')
+    setPayDueError('')
+    setPayDueSuccess('')
+  }
+
+  const handlePayDue = async (e) => {
+    e.preventDefault()
+    const amt = parseFloat(payDueAmount)
+    if (!amt || amt <= 0) return setPayDueError('Enter a valid amount')
+    if (amt > payDueTx.dueAmount) return setPayDueError(`Max payable is ₹${payDueTx.dueAmount.toLocaleString('en-IN')}`)
+    setPayDueLoading(true)
+    setPayDueError('')
+    try {
+      const res = await api.patch(`/transactions/${payDueTx._id || payDueTx.id}/pay-due`, { amount: amt })
+      setPayDueSuccess(res.data.message)
+      // Update the transaction in local state
+      fetchTransactions(activeParams)
+      setTimeout(() => setPayDueTx(null), 1500)
+    } catch (err) {
+      setPayDueError(err.response?.data?.error || 'Failed to update')
+    } finally {
+      setPayDueLoading(false)
+    }
+  }
 
   // Fetch staff list for filter (admin only)
   useEffect(() => {
@@ -517,6 +552,15 @@ const History = () => {
                             </button>
                           )}
                           
+                          {transaction.dueAmount > 0 && (
+                            <button
+                              onClick={() => openPayDue(transaction)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                              title="Record partial payment"
+                            >
+                              Pay Due
+                            </button>
+                          )}
                           {user?.role === 'admin' && (
                             <>
                               <button
@@ -526,7 +570,7 @@ const History = () => {
                               >
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              
+
                               <button
                                 onClick={() => handleDelete(transaction)}
                                 className="p-2 text-gray-400 hover:text-red-600 transition-colors"
@@ -583,6 +627,75 @@ const History = () => {
     </div>
 
     <UndoToast undoPending={undoPending} undoCountdown={undoCountdown} onUndo={cancelUndo} />
+
+    {/* Pay Due Modal */}
+    {payDueTx && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setPayDueTx(null)} />
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-slate-900">Record Payment</h2>
+            <button onClick={() => setPayDueTx(null)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100">
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Info */}
+          <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 mb-4">
+            <p className="text-sm font-semibold text-slate-800">{payDueTx.customerName}</p>
+            {payDueTx.productDescription && (
+              <p className="text-xs text-slate-500 mt-0.5">{payDueTx.productDescription}</p>
+            )}
+            <div className="flex items-center gap-3 mt-2 text-xs">
+              <span className="text-slate-500">Total: <span className="font-semibold text-slate-700">₹{(payDueTx.totalAmount || payDueTx.amount)?.toLocaleString('en-IN')}</span></span>
+              <span className="text-orange-600 font-bold">Outstanding: ₹{payDueTx.dueAmount?.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+
+          {payDueError && (
+            <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{payDueError}</div>
+          )}
+          {payDueSuccess && (
+            <div className="mb-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg">
+              <CheckCircleIcon className="h-4 w-4" />{payDueSuccess}
+            </div>
+          )}
+
+          <form onSubmit={handlePayDue} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Amount Paying Now (₹) *
+              </label>
+              <input
+                type="number" min="0.01" step="0.01" autoFocus
+                className="input-field text-lg font-bold"
+                placeholder={`max ₹${payDueTx.dueAmount?.toLocaleString('en-IN')}`}
+                value={payDueAmount}
+                onChange={e => setPayDueAmount(e.target.value)}
+              />
+              {payDueAmount && parseFloat(payDueAmount) > 0 && parseFloat(payDueAmount) < payDueTx.dueAmount && (
+                <p className="text-xs text-orange-500 mt-1">
+                  Still remaining: ₹{(payDueTx.dueAmount - parseFloat(payDueAmount)).toLocaleString('en-IN')}
+                </p>
+              )}
+              {payDueAmount && parseFloat(payDueAmount) >= payDueTx.dueAmount && (
+                <p className="text-xs text-emerald-600 font-semibold mt-1">Fully cleared!</p>
+              )}
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setPayDueTx(null)}
+                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button type="submit" disabled={payDueLoading}
+                className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-60">
+                {payDueLoading ? 'Saving…' : 'Mark Paid'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
     </>
   )
 }
