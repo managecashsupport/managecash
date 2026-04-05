@@ -108,7 +108,7 @@ export default async function transactionRoutes(fastify) {
   fastify.post('/', { preHandler: [tenantResolver] }, async (request, reply) => {
     try {
       const { type, customerName, amount, productDescription, date, payMode, imageUrl, imageKey, notes,
-              stockId, quantitySold, linkedCustomerId, billNo } = request.body;
+              stockId, quantitySold, linkedCustomerId, billNo, totalAmount } = request.body;
 
       if (!type || !customerName || !amount || !date) {
         return reply.status(400).send({ error: 'Type, customer name, amount, and date are required' });
@@ -164,6 +164,10 @@ export default async function transactionRoutes(fastify) {
         imageKey: imageKey || null,
         notes: notes || null,
         billNo: billNo?.trim() || null,
+        totalAmount:  totalAmount ? parseFloat(totalAmount) : null,
+        dueAmount:    totalAmount && parseFloat(totalAmount) > amountNum
+                        ? parseFloat(totalAmount) - amountNum
+                        : null,
         stockId:          stockItem ? stockItem._id  : null,
         stockName:        stockItem ? stockItem.name : null,
         stockCategory:    stockItem ? stockItem.category : null,
@@ -241,7 +245,7 @@ export default async function transactionRoutes(fastify) {
       const exists = await Transaction.findOne(filter);
       if (!exists) return reply.status(404).send({ error: 'Transaction not found or cannot be edited' });
 
-      const { customerName, amount, productDescription, date, payMode, imageUrl, notes, quantitySold, billNo } = request.body;
+      const { customerName, amount, productDescription, date, payMode, imageUrl, notes, quantitySold, billNo, totalAmount } = request.body;
       const updates = {};
 
       if (customerName)              updates.customerName       = customerName;
@@ -259,6 +263,18 @@ export default async function transactionRoutes(fastify) {
       if (imageUrl !== undefined)    updates.imageUrl  = imageUrl || null;
       if (notes   !== undefined)     updates.notes     = notes || null;
       if (billNo  !== undefined)     updates.billNo    = billNo?.trim() || null;
+      if (totalAmount !== undefined) {
+        const ta = totalAmount ? parseFloat(totalAmount) : null;
+        updates.totalAmount = ta;
+        const paid = amount !== undefined ? parseFloat(amount) : exists.amount;
+        updates.dueAmount = ta && ta > paid ? ta - paid : null;
+      } else if (amount !== undefined) {
+        // amount changed but totalAmount not re-sent — recompute dueAmount if totalAmount exists
+        if (exists.totalAmount) {
+          const paid = parseFloat(amount);
+          updates.dueAmount = exists.totalAmount > paid ? exists.totalAmount - paid : null;
+        }
+      }
 
       // Adjust stock if quantitySold changed on an 'out' transaction
       if (exists.stockId && quantitySold !== undefined) {

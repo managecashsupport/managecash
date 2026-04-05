@@ -47,6 +47,12 @@ const AddTransaction = () => {
   // Bill No
   const [billNo, setBillNo] = useState(existingTx?.billNo || '')
 
+  // Partial payment
+  const [totalAmount, setTotalAmount] = useState(existingTx?.totalAmount || '')
+  const dueAmount = totalAmount && formData.amount && parseFloat(totalAmount) > parseFloat(formData.amount)
+    ? parseFloat(totalAmount) - parseFloat(formData.amount)
+    : null
+
   // Stock linkage
   const [stockItems, setStockItems] = useState([])
   const [selectedStock, setSelectedStock] = useState(null)
@@ -269,6 +275,7 @@ const AddTransaction = () => {
         imageUrl,
         notes: formData.notes || null,
         billNo: billNo.trim() || null,
+        ...(totalAmount && parseFloat(totalAmount) > 0 ? { totalAmount: parseFloat(totalAmount) } : {}),
         ...(selectedStock && quantitySold ? {
           stockId: selectedStock._id,
           quantitySold: Number(quantitySold),
@@ -313,6 +320,7 @@ const AddTransaction = () => {
     setSelectedCustomer(null)
     setCustomerQuery('')
     setBillNo('')
+    setTotalAmount('')
     clearStock()
   }
 
@@ -613,28 +621,69 @@ const AddTransaction = () => {
                   )}
                 </div>
 
-                <div>
-                  <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
-                    Amount (₹) *
-                  </label>
-                  <div className="mt-1 relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <BanknotesIcon className="h-5 w-5 text-gray-400" />
+                <div className="space-y-3">
+                  {/* Full price (optional — for partial payment) */}
+                  <div>
+                    <label htmlFor="totalAmount" className="block text-sm font-medium text-gray-700">
+                      Full Price (₹) <span className="text-gray-400 font-normal text-xs">— if paying partially</span>
+                    </label>
+                    <div className="mt-1 relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <BanknotesIcon className="h-5 w-5 text-gray-300" />
+                      </div>
+                      <input
+                        id="totalAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="input-field pl-10"
+                        placeholder="Total item price (leave blank if paying full)"
+                        value={totalAmount}
+                        onChange={e => setTotalAmount(e.target.value)}
+                      />
                     </div>
-                    <input
-                      id="amount"
-                      name="amount"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className={`input-field pl-10 ${errors.amount ? 'border-red-300' : ''}`}
-                      placeholder="0.00"
-                      value={formData.amount}
-                      onChange={handleInputChange}
-                    />
                   </div>
-                  {errors.amount && (
-                    <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
+
+                  {/* Amount paying now */}
+                  <div>
+                    <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
+                      {totalAmount ? 'Paying Now (₹) *' : 'Amount (₹) *'}
+                    </label>
+                    <div className="mt-1 relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <BanknotesIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        id="amount"
+                        name="amount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className={`input-field pl-10 ${errors.amount ? 'border-red-300' : ''}`}
+                        placeholder="0.00"
+                        value={formData.amount}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                    {errors.amount && (
+                      <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
+                    )}
+                  </div>
+
+                  {/* Remaining balance preview */}
+                  {dueAmount !== null && dueAmount > 0 && (
+                    <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                      <span className="text-xs text-orange-700 font-medium">Remaining balance:</span>
+                      <span className="text-sm font-bold text-orange-600">
+                        ₹{dueAmount.toLocaleString('en-IN')}
+                      </span>
+                      <span className="text-xs text-orange-500 ml-auto">will show as due on passbook</span>
+                    </div>
+                  )}
+                  {totalAmount && formData.amount && parseFloat(formData.amount) >= parseFloat(totalAmount) && (
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      <span className="text-xs text-emerald-700 font-semibold">Full amount paid — Cleared</span>
+                    </div>
                   )}
                 </div>
               </div>

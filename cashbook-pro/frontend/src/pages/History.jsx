@@ -459,11 +459,21 @@ const History = () => {
                             )}
                           </div>
 
-                          <div className="flex items-center space-x-4 mb-2">
+                          <div className="flex items-center space-x-3 mb-2 flex-wrap gap-y-1">
                             <h3 className="text-sm font-medium text-gray-900">{transaction.customerName}</h3>
                             {transaction.productDescription && (
                               <span className="text-xs text-gray-500 truncate max-w-xs">
                                 {transaction.productDescription}
+                              </span>
+                            )}
+                            {transaction.dueAmount > 0 && (
+                              <span className="inline-flex items-center text-[11px] font-bold bg-orange-100 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">
+                                ₹{transaction.dueAmount.toLocaleString('en-IN')} due
+                              </span>
+                            )}
+                            {transaction.totalAmount > 0 && !transaction.dueAmount && (
+                              <span className="inline-flex items-center text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                Cleared
                               </span>
                             )}
                           </div>
