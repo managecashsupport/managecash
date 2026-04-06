@@ -4,8 +4,6 @@ import useTransactions from '../hooks/useTransactions'
 import api from '../services/api'
 import { 
   PlusCircleIcon,
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
   UserIcon,
   CalendarIcon,
   BanknotesIcon,
@@ -27,7 +25,7 @@ const AddTransaction = () => {
   const { createTransaction, updateTransaction, loading: transactionLoading } = useTransactions()
 
   const [formData, setFormData] = useState({
-    type: existingTx?.type || location.state?.type || 'in',
+    type: existingTx?.type || 'out',
     customerName: existingTx?.customerName || '',
     amount: existingTx?.amount || '',
     productDescription: existingTx?.productDescription || '',
@@ -104,28 +102,6 @@ const AddTransaction = () => {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const customerRef = React.useRef(null)
-
-  // Wallet coverage (computed — no state needed)
-  // These must be defined after selectedCustomer state to avoid TDZ (Temporal Dead Zone)
-  const itemPrice      = parseFloat(totalAmount || formData.amount) || 0
-  const walletBalance  = selectedCustomer?.balance || 0
-  const isLinkedSale   = !!selectedCustomer && formData.type === 'out'
-  const isLinkedReceipt= !!selectedCustomer && formData.type === 'in'
-  const walletCovers   = isLinkedSale && walletBalance > 0 ? Math.min(walletBalance, itemPrice) : 0
-  const cashNeeded     = isLinkedSale ? Math.max(0, itemPrice - walletCovers) : itemPrice
-  const fullyFromWallet= isLinkedSale && itemPrice > 0 && walletCovers >= itemPrice
-  const newWalletBal   = selectedCustomer && itemPrice > 0
-    ? walletBalance + (formData.type === 'in' ? (parseFloat(formData.amount) || 0) : -itemPrice)
-    : null
-
-  // Pre-load linked customer when editing
-  useEffect(() => {
-    if (isEditing && existingTx?.linkedCustomerId) {
-      api.get(`/customers/${existingTx.linkedCustomerId}`)
-        .then(res => setSelectedCustomer(res.data))
-        .catch(() => {}) // if customer was deleted, just leave unlinked
-    }
-  }, [])
 
   // Quick-add new customer
   const [showQuickAdd, setShowQuickAdd] = useState(false)
@@ -205,15 +181,6 @@ const AddTransaction = () => {
       setQuickLoading(false)
     }
   }
-
-  useEffect(() => {
-    // Set default type from URL params if provided
-    const params = new URLSearchParams(location.search)
-    const type = params.get('type')
-    if (type === 'in' || type === 'out') {
-      setFormData(prev => ({ ...prev, type }))
-    }
-  }, [location.search])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -346,7 +313,7 @@ const AddTransaction = () => {
             </div>
             <h2 className="mt-6 text-3xl font-bold text-gray-900">{isEditing ? 'Entry Updated!' : 'Entry Saved!'} ✅</h2>
             <p className="mt-2 text-sm text-gray-600">
-              Your {formData.type === 'in' ? 'payment in' : 'payment out'} has been {isEditing ? 'updated' : 'recorded'}.
+              Your sale entry has been {isEditing ? 'updated' : 'recorded'}.
             </p>
           </div>
         </div>
@@ -367,7 +334,7 @@ const AddTransaction = () => {
                       Customer: {formData.customerName}
                     </p>
                     <p className="text-sm text-green-700">
-                      Type: {formData.type === 'in' ? 'Received' : 'Sale / Gave'}
+                      Type: Sale / Gave
                     </p>
                   </div>
                 </div>
@@ -394,7 +361,7 @@ const AddTransaction = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{isEditing ? 'Edit Entry' : 'Add Entry'}</h1>
-                <p className="text-gray-600">{isEditing ? 'Update the entry details below.' : 'Record money received or a sale / amount given.'}</p>
+                <p className="text-gray-600">{isEditing ? 'Update the entry details below.' : 'Record a sale or cash entry.'}</p>
               </div>
               <div className="flex items-center space-x-4">
                 <button
@@ -410,48 +377,6 @@ const AddTransaction = () => {
           {/* Main Form */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Type Toggle */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Entry Type</label>
-                <p className="text-xs text-slate-400 mb-2">
-                  {formData.type === 'in'
-                    ? 'Customer paid you / money received in shop'
-                    : 'You sold goods or gave money to customer'}
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, type: 'in' }))}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-colors ${
-                      formData.type === 'in'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <ArrowTrendingUpIcon className="h-5 w-5" />
-                    <div className="text-left">
-                      <p className="text-sm font-bold">Received</p>
-                      <p className="text-[10px] font-normal opacity-70">Money came in</p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, type: 'out' }))}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-colors ${
-                      formData.type === 'out'
-                        ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <ArrowTrendingDownIcon className="h-5 w-5" />
-                    <div className="text-left">
-                      <p className="text-sm font-bold">Sale / Gave</p>
-                      <p className="text-[10px] font-normal opacity-70">Goods or money given</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
               {/* Product from Stock */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                   <p className="text-sm font-semibold text-slate-700">Product / Item <span className="text-slate-400 font-normal">(optional — links to stock & auto-deducts)</span></p>
@@ -701,73 +626,6 @@ const AddTransaction = () => {
                   )}
                 </div>
               </div>
-
-              {/* Wallet impact banner — shown when existing customer + amount */}
-              {selectedCustomer && itemPrice > 0 && (
-                isLinkedSale ? (
-                  fullyFromWallet ? (
-                    <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                      <CheckCircleIcon className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-semibold text-emerald-700">Fully covered by wallet balance</p>
-                        <p className="text-xs text-emerald-600 mt-0.5">
-                          ₹{itemPrice.toLocaleString('en-IN')} deducted from wallet ·
-                          Balance: <span className="font-bold">₹{walletBalance.toLocaleString('en-IN')}</span> →{' '}
-                          <span className={`font-bold ${(walletBalance - itemPrice) < 0 ? 'text-orange-600' : 'text-emerald-700'}`}>
-                            ₹{(walletBalance - itemPrice).toLocaleString('en-IN')}
-                          </span>
-                        </p>
-                        <p className="text-[11px] text-emerald-500 mt-0.5">No cash / online payment needed</p>
-                      </div>
-                    </div>
-                  ) : walletCovers > 0 ? (
-                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                      <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-semibold text-amber-700">Partial wallet coverage</p>
-                        <p className="text-xs text-amber-600 mt-0.5">
-                          ₹{walletCovers.toLocaleString('en-IN')} from wallet ·{' '}
-                          <span className="font-bold">₹{cashNeeded.toLocaleString('en-IN')} cash/online</span> needed (or becomes loan)
-                        </p>
-                        <p className="text-[11px] text-amber-500 mt-0.5">
-                          Wallet: ₹{walletBalance.toLocaleString('en-IN')} → ₹0 · Loan: ₹{cashNeeded.toLocaleString('en-IN')}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
-                      <InformationCircleIcon className="h-5 w-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-semibold text-orange-700">
-                          {walletBalance < 0 ? 'Adding to existing loan' : 'Full amount on loan'}
-                        </p>
-                        <p className="text-xs text-orange-600 mt-0.5">
-                          Loan will be: <span className="font-bold">₹{Math.abs(walletBalance - itemPrice).toLocaleString('en-IN')}</span>
-                        </p>
-                      </div>
-                    </div>
-                  )
-                ) : isLinkedReceipt && (
-                  <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${
-                    newWalletBal >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'
-                  }`}>
-                    <CheckCircleIcon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${newWalletBal >= 0 ? 'text-emerald-500' : 'text-orange-400'}`} />
-                    <div>
-                      <p className={`text-sm font-semibold ${newWalletBal >= 0 ? 'text-emerald-700' : 'text-orange-700'}`}>
-                        {walletBalance < 0 ? 'Reducing loan' : 'Adding to advance'}
-                      </p>
-                      <p className={`text-xs mt-0.5 ${newWalletBal >= 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
-                        Balance: <span className="font-bold">
-                          {walletBalance < 0 ? `-₹${Math.abs(walletBalance).toLocaleString('en-IN')}` : `₹${walletBalance.toLocaleString('en-IN')}`}
-                        </span> →{' '}
-                        <span className="font-bold">
-                          {newWalletBal < 0 ? `-₹${Math.abs(newWalletBal).toLocaleString('en-IN')} loan remaining` : `₹${newWalletBal.toLocaleString('en-IN')} ${newWalletBal === 0 ? '(cleared)' : 'advance'}`}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                )
-              )}
 
               {/* Product Description + Bill No */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
