@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import useTransactions from '../hooks/useTransactions'
-import useUpload from '../hooks/useUpload'
 import api from '../services/api'
 import { 
   PlusCircleIcon,
@@ -17,7 +16,6 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
 import PaymentModeToggle from '../components/PaymentModeToggle'
-import ImageUpload from '../components/ImageUpload'
 
 const AddTransaction = () => {
   const navigate = useNavigate()
@@ -27,7 +25,6 @@ const AddTransaction = () => {
   const existingTx = location.state?.transaction
 
   const { createTransaction, updateTransaction, loading: transactionLoading } = useTransactions()
-  const { uploadFile, loading: uploadLoading } = useUpload()
 
   const [formData, setFormData] = useState({
     type: existingTx?.type || location.state?.type || 'in',
@@ -38,8 +35,6 @@ const AddTransaction = () => {
     payMode: existingTx?.payMode || 'cash',
     notes: existingTx?.notes || ''
   })
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
   const [errors, setErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -224,29 +219,8 @@ const AddTransaction = () => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
 
-    // When user types amount manually, keep totalAmount in sync if user hasn't set it separately
-    if (name === 'amount') {
-      setTotalAmount(prev => {
-        // Only auto-sync if totalAmount === amount (i.e. user hasn't entered a different total)
-        const prevAmount = formData.amount?.toString()
-        if (!prev || prev === prevAmount) return value
-        return prev
-      })
-    }
-
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }))
-    }
-  }
-
-  const handleImageChange = (file) => {
-    setImageFile(file)
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => setImagePreview(e.target.result)
-      reader.readAsDataURL(file)
-    } else {
-      setImagePreview(null)
     }
   }
 
@@ -297,18 +271,6 @@ const AddTransaction = () => {
     setIsSubmitting(true)
 
     try {
-      let imageUrl = null
-
-      // Upload image if provided
-      if (imageFile) {
-        const uploadResult = await uploadFile(imageFile)
-        if (uploadResult.success) {
-          imageUrl = uploadResult.fileUrl
-        } else {
-          throw new Error(uploadResult.error || 'Failed to upload image')
-        }
-      }
-
       const transactionData = {
         type: formData.type,
         customerName: formData.customerName,
@@ -316,7 +278,6 @@ const AddTransaction = () => {
         productDescription: formData.productDescription || null,
         date: formData.date,
         payMode: formData.payMode,
-        imageUrl,
         notes: formData.notes || null,
         billNo: billNo.trim() || null,
         ...(totalAmount && parseFloat(totalAmount) > 0 ? { totalAmount: parseFloat(totalAmount) } : {}),
@@ -357,8 +318,6 @@ const AddTransaction = () => {
       payMode: 'cash',
       notes: ''
     })
-    setImageFile(null)
-    setImagePreview(null)
     setErrors({})
     setShowSuccess(false)
     setSelectedCustomer(null)
@@ -694,8 +653,8 @@ const AddTransaction = () => {
                         value={totalAmount}
                         onChange={e => {
                           setTotalAmount(e.target.value)
-                          // If paying now hasn't been set differently, keep them in sync
-                          if (!formData.amount || formData.amount === totalAmount) {
+                          // Only auto-fill paying now if it's currently empty
+                          if (!formData.amount) {
                             setFormData(prev => ({ ...prev, amount: e.target.value }))
                           }
                         }}
@@ -892,20 +851,6 @@ const AddTransaction = () => {
                     />
                   </div>
                 )}
-              </div>
-
-              {/* Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Bill/Receipt Image
-                </label>
-                <ImageUpload
-                  file={imageFile}
-                  preview={imagePreview}
-                  onChange={handleImageChange}
-                  accept="image/*"
-                  maxSize={5 * 1024 * 1024} // 5MB
-                />
               </div>
 
               {/* Notes */}
