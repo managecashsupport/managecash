@@ -1,4 +1,3 @@
-import React from 'react'
 import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
@@ -42,7 +41,7 @@ const TransactionCard = ({ transaction }) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`chip text-[10px] ${isIn ? 'chip-green' : 'chip-red'}`}>
-                {isIn ? 'Cash In' : 'Cash Out'}
+                {isIn ? 'Received' : 'Sale / Gave'}
               </span>
               {transaction.imageUrl && (
                 <span className="chip chip-blue text-[10px]">

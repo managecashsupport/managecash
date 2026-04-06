@@ -53,6 +53,18 @@ const AddTransaction = () => {
     ? parseFloat(totalAmount) - parseFloat(formData.amount)
     : null
 
+  // Wallet coverage (computed — no state needed)
+  const itemPrice      = parseFloat(totalAmount || formData.amount) || 0
+  const walletBalance  = selectedCustomer?.balance || 0
+  const isLinkedSale   = !!selectedCustomer && formData.type === 'out'
+  const isLinkedReceipt= !!selectedCustomer && formData.type === 'in'
+  const walletCovers   = isLinkedSale && walletBalance > 0 ? Math.min(walletBalance, itemPrice) : 0
+  const cashNeeded     = isLinkedSale ? Math.max(0, itemPrice - walletCovers) : itemPrice
+  const fullyFromWallet= isLinkedSale && itemPrice > 0 && walletCovers >= itemPrice
+  const newWalletBal   = selectedCustomer && itemPrice > 0
+    ? walletBalance + (formData.type === 'in' ? (parseFloat(formData.amount) || 0) : -itemPrice)
+    : null
+
   // Stock linkage
   const [stockItems, setStockItems] = useState([])
   const [selectedStock, setSelectedStock] = useState(null)
@@ -81,16 +93,19 @@ const AddTransaction = () => {
     setSelectedStock(item)
     setStockSearch(item.name)
     setShowStockDropdown(false)
-    // Auto-fill amount if quantity already entered
     if (quantitySold) {
-      setFormData(prev => ({ ...prev, amount: (item.pricePerUnit * Number(quantitySold)).toFixed(2) }))
+      const price = (item.pricePerUnit * Number(quantitySold)).toFixed(2)
+      setFormData(prev => ({ ...prev, amount: price }))
+      setTotalAmount(price)
     }
   }
 
   const handleQuantityChange = (qty) => {
     setQuantitySold(qty)
     if (selectedStock && qty) {
-      setFormData(prev => ({ ...prev, amount: (selectedStock.pricePerUnit * Number(qty)).toFixed(2) }))
+      const price = (selectedStock.pricePerUnit * Number(qty)).toFixed(2)
+      setFormData(prev => ({ ...prev, amount: price }))
+      setTotalAmount(price)
     }
   }
 
@@ -146,7 +161,16 @@ const AddTransaction = () => {
 
   const handleSelectCustomer = (customer) => {
     setSelectedCustomer(customer)
-    setFormData(prev => ({ ...prev, customerName: customer.fullName }))
+    setFormData(prev => {
+      const updated = { ...prev, customerName: customer.fullName }
+      // If it's a "Sale / Gave" entry and customer has advance balance, pre-fill from wallet
+      if (prev.type === 'out' && customer.balance > 0 && !prev.amount) {
+        const walletAmt = customer.balance.toFixed(2)
+        updated.amount = walletAmt
+        setTotalAmount(walletAmt)
+      }
+      return updated
+    })
     setCustomerQuery(customer.fullName)
     setShowCustomerDropdown(false)
     setShowQuickAdd(false)
@@ -198,12 +222,20 @@ const AddTransaction = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
-    
-    // Clear specific errors when user starts typing
+
+    // When user types amount manually, keep totalAmount in sync if user hasn't set it separately
+    if (name === 'amount') {
+      setTotalAmount(prev => {
+        // Only auto-sync if totalAmount === amount (i.e. user hasn't entered a different total)
+        const prevAmount = formData.amount?.toString()
+        if (!prev || prev === prevAmount) return value
+        return prev
+      })
+    }
+
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }))
     }
-
   }
 
   const handleImageChange = (file) => {
@@ -224,14 +256,25 @@ const AddTransaction = () => {
       newErrors.customerName = 'Customer name is required'
     }
 
-    if (!formData.amount) {
+    const amtToCheck = totalAmount || formData.amount
+    if (!amtToCheck) {
       newErrors.amount = 'Amount is required'
     } else {
-      const amount = parseFloat(formData.amount)
+      const amount = parseFloat(amtToCheck)
       if (isNaN(amount) || amount <= 0) {
         newErrors.amount = 'Amount must be a positive number'
       } else if (amount > 1000000) {
         newErrors.amount = 'Amount cannot exceed ₹1,000,000'
+      }
+      // Paying Now must not exceed Total
+      if (totalAmount && formData.amount) {
+        const paying = parseFloat(formData.amount)
+        const total  = parseFloat(totalAmount)
+        if (paying > total) newErrors.amount = 'Paying now cannot exceed total amount'
+      }
+      // Ensure paying now is set
+      if (!formData.amount) {
+        setFormData(prev => ({ ...prev, amount: totalAmount }))
       }
     }
 
@@ -364,7 +407,7 @@ const AddTransaction = () => {
                       Customer: {formData.customerName}
                     </p>
                     <p className="text-sm text-green-700">
-                      Type: {formData.type === 'in' ? 'Cash In' : 'Cash Out'}
+                      Type: {formData.type === 'in' ? 'Received' : 'Sale / Gave'}
                     </p>
                   </div>
                 </div>
@@ -391,7 +434,7 @@ const AddTransaction = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{isEditing ? 'Edit Entry' : 'Add Entry'}</h1>
-                <p className="text-gray-600">{isEditing ? 'Update the entry details below.' : 'Record a new payment in or out for your shop.'}</p>
+                <p className="text-gray-600">{isEditing ? 'Update the entry details below.' : 'Record money received or a sale / amount given.'}</p>
               </div>
               <div className="flex items-center space-x-4">
                 <button
@@ -409,33 +452,42 @@ const AddTransaction = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Type Toggle */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Entry Type
-                </label>
-                <div className="flex space-x-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Entry Type</label>
+                <p className="text-xs text-slate-400 mb-2">
+                  {formData.type === 'in'
+                    ? 'Customer paid you / money received in shop'
+                    : 'You sold goods or gave money to customer'}
+                </p>
+                <div className="flex gap-3">
                   <button
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, type: 'in' }))}
-                    className={`flex items-center px-4 py-2 rounded-lg border-2 transition-colors ${
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-colors ${
                       formData.type === 'in'
                         ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <ArrowTrendingUpIcon className="h-5 w-5 mr-2" />
-                    Payment In
+                    <ArrowTrendingUpIcon className="h-5 w-5" />
+                    <div className="text-left">
+                      <p className="text-sm font-bold">Received</p>
+                      <p className="text-[10px] font-normal opacity-70">Money came in</p>
+                    </div>
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, type: 'out' }))}
-                    className={`flex items-center px-4 py-2 rounded-lg border-2 transition-colors ${
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-colors ${
                       formData.type === 'out'
                         ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <ArrowTrendingDownIcon className="h-5 w-5 mr-2" />
-                    Payment Out
+                    <ArrowTrendingDownIcon className="h-5 w-5" />
+                    <div className="text-left">
+                      <p className="text-sm font-bold">Sale / Gave</p>
+                      <p className="text-[10px] font-normal opacity-70">Goods or money given</p>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -622,10 +674,10 @@ const AddTransaction = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {/* Full price (optional — for partial payment) */}
+                  {/* Total item price */}
                   <div>
                     <label htmlFor="totalAmount" className="block text-sm font-medium text-gray-700">
-                      Full Price (₹) <span className="text-gray-400 font-normal text-xs">— if paying partially</span>
+                      Total Amount (₹) *
                     </label>
                     <div className="mt-1 relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -637,17 +689,26 @@ const AddTransaction = () => {
                         step="0.01"
                         min="0"
                         className="input-field pl-10"
-                        placeholder="Total item price (leave blank if paying full)"
+                        placeholder="0.00"
                         value={totalAmount}
-                        onChange={e => setTotalAmount(e.target.value)}
+                        onChange={e => {
+                          setTotalAmount(e.target.value)
+                          // If paying now hasn't been set differently, keep them in sync
+                          if (!formData.amount || formData.amount === totalAmount) {
+                            setFormData(prev => ({ ...prev, amount: e.target.value }))
+                          }
+                        }}
                       />
                     </div>
                   </div>
 
-                  {/* Amount paying now */}
+                  {/* Amount paying now — only shown when partial */}
                   <div>
                     <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
-                      {totalAmount ? 'Paying Now (₹) *' : 'Amount (₹) *'}
+                      Paying Now (₹) *
+                      {totalAmount && formData.amount === totalAmount && (
+                        <span className="text-xs text-emerald-600 font-normal ml-2">full amount</span>
+                      )}
                     </label>
                     <div className="mt-1 relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -670,23 +731,83 @@ const AddTransaction = () => {
                     )}
                   </div>
 
-                  {/* Remaining balance preview */}
+                  {/* Due preview */}
                   {dueAmount !== null && dueAmount > 0 && (
                     <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-                      <span className="text-xs text-orange-700 font-medium">Remaining balance:</span>
-                      <span className="text-sm font-bold text-orange-600">
-                        ₹{dueAmount.toLocaleString('en-IN')}
-                      </span>
-                      <span className="text-xs text-orange-500 ml-auto">will show as due on passbook</span>
-                    </div>
-                  )}
-                  {totalAmount && formData.amount && parseFloat(formData.amount) >= parseFloat(totalAmount) && (
-                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                      <span className="text-xs text-emerald-700 font-semibold">Full amount paid — Cleared</span>
+                      <span className="text-xs text-orange-700 font-medium">Still to pay:</span>
+                      <span className="text-sm font-bold text-orange-600">₹{dueAmount.toLocaleString('en-IN')}</span>
+                      <span className="text-xs text-orange-400 ml-auto">will appear as due</span>
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* Wallet impact banner — shown when existing customer + amount */}
+              {selectedCustomer && itemPrice > 0 && (
+                isLinkedSale ? (
+                  fullyFromWallet ? (
+                    <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                      <CheckCircleIcon className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-700">Fully covered by wallet balance</p>
+                        <p className="text-xs text-emerald-600 mt-0.5">
+                          ₹{itemPrice.toLocaleString('en-IN')} deducted from wallet ·
+                          Balance: <span className="font-bold">₹{walletBalance.toLocaleString('en-IN')}</span> →{' '}
+                          <span className={`font-bold ${(walletBalance - itemPrice) < 0 ? 'text-orange-600' : 'text-emerald-700'}`}>
+                            ₹{(walletBalance - itemPrice).toLocaleString('en-IN')}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-emerald-500 mt-0.5">No cash / online payment needed</p>
+                      </div>
+                    </div>
+                  ) : walletCovers > 0 ? (
+                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                      <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-amber-700">Partial wallet coverage</p>
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          ₹{walletCovers.toLocaleString('en-IN')} from wallet ·{' '}
+                          <span className="font-bold">₹{cashNeeded.toLocaleString('en-IN')} cash/online</span> needed (or becomes loan)
+                        </p>
+                        <p className="text-[11px] text-amber-500 mt-0.5">
+                          Wallet: ₹{walletBalance.toLocaleString('en-IN')} → ₹0 · Loan: ₹{cashNeeded.toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+                      <InformationCircleIcon className="h-5 w-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-orange-700">
+                          {walletBalance < 0 ? 'Adding to existing loan' : 'Full amount on loan'}
+                        </p>
+                        <p className="text-xs text-orange-600 mt-0.5">
+                          Loan will be: <span className="font-bold">₹{Math.abs(walletBalance - itemPrice).toLocaleString('en-IN')}</span>
+                        </p>
+                      </div>
+                    </div>
+                  )
+                ) : isLinkedReceipt && (
+                  <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${
+                    newWalletBal >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'
+                  }`}>
+                    <CheckCircleIcon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${newWalletBal >= 0 ? 'text-emerald-500' : 'text-orange-400'}`} />
+                    <div>
+                      <p className={`text-sm font-semibold ${newWalletBal >= 0 ? 'text-emerald-700' : 'text-orange-700'}`}>
+                        {walletBalance < 0 ? 'Reducing loan' : 'Adding to advance'}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${newWalletBal >= 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
+                        Balance: <span className="font-bold">
+                          {walletBalance < 0 ? `-₹${Math.abs(walletBalance).toLocaleString('en-IN')}` : `₹${walletBalance.toLocaleString('en-IN')}`}
+                        </span> →{' '}
+                        <span className="font-bold">
+                          {newWalletBal < 0 ? `-₹${Math.abs(newWalletBal).toLocaleString('en-IN')} loan remaining` : `₹${newWalletBal.toLocaleString('en-IN')} ${newWalletBal === 0 ? '(cleared)' : 'advance'}`}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                )
+              )}
 
               {/* Product Description + Bill No */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -747,15 +868,29 @@ const AddTransaction = () => {
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Mode
-                  </label>
-                  <PaymentModeToggle
-                    value={formData.payMode}
-                    onChange={(mode) => setFormData(prev => ({ ...prev, payMode: mode }))}
-                  />
-                </div>
+                {fullyFromWallet ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                      <CheckCircleIcon className="h-4 w-4 text-emerald-500" />
+                      <span className="text-sm font-semibold text-emerald-700">From Wallet Balance</span>
+                      <span className="text-xs text-emerald-500 ml-auto">No cash needed</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Payment Mode
+                      {walletCovers > 0 && cashNeeded > 0 && (
+                        <span className="text-xs text-amber-500 font-normal ml-2">for ₹{cashNeeded.toLocaleString('en-IN')} cash portion</span>
+                      )}
+                    </label>
+                    <PaymentModeToggle
+                      value={formData.payMode}
+                      onChange={(mode) => setFormData(prev => ({ ...prev, payMode: mode }))}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Image Upload */}

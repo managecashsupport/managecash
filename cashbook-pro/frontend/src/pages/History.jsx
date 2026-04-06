@@ -350,8 +350,8 @@ const History = () => {
                     className="input-field text-sm"
                   >
                     <option value="all">All Types</option>
-                    <option value="in">Cash In</option>
-                    <option value="out">Cash Out</option>
+                    <option value="in">Received</option>
+                    <option value="out">Sale / Gave</option>
                   </select>
                 </div>
 
@@ -443,7 +443,7 @@ const History = () => {
                   Entries ({filteredTransactions.length})
                 </h2>
                 <div className="flex items-center space-x-4 text-sm text-gray-600">
-                  <span>{filters.type !== 'all' && `${filters.type === 'in' ? 'Payment In' : 'Payment Out'} • `}</span>
+                  <span>{filters.type !== 'all' && `${filters.type === 'in' ? 'Received' : 'Sale / Gave'} • `}</span>
                   <span>{filters.payMode !== 'all' && `${filters.payMode} • `}</span>
                   <span>{(filters.dateFrom || filters.dateTo) && `${filters.dateFrom ? formatDate(filters.dateFrom) : 'Start'} - ${filters.dateTo ? formatDate(filters.dateTo) : 'Today'}`}</span>
                 </div>
@@ -472,7 +472,7 @@ const History = () => {
                               ) : (
                                 <ArrowTrendingDownIcon className="h-3 w-3 mr-1" />
                               )}
-                              {transaction.type === 'in' ? 'Cash In' : 'Cash Out'}
+                              {transaction.type === 'in' ? 'Received' : 'Sale / Gave'}
                             </span>
                             
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
