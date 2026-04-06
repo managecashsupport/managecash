@@ -914,10 +914,10 @@ const AddTransaction = () => {
                   
                   <button
                     type="submit"
-                    disabled={isSubmitting || transactionLoading || uploadLoading}
+                    disabled={isSubmitting || transactionLoading}
                     className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {isSubmitting || transactionLoading || uploadLoading ? (
+                    {isSubmitting || transactionLoading ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Processing...
