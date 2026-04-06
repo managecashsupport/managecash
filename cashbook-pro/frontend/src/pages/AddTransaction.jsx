@@ -53,18 +53,6 @@ const AddTransaction = () => {
     ? parseFloat(totalAmount) - parseFloat(formData.amount)
     : null
 
-  // Wallet coverage (computed — no state needed)
-  const itemPrice      = parseFloat(totalAmount || formData.amount) || 0
-  const walletBalance  = selectedCustomer?.balance || 0
-  const isLinkedSale   = !!selectedCustomer && formData.type === 'out'
-  const isLinkedReceipt= !!selectedCustomer && formData.type === 'in'
-  const walletCovers   = isLinkedSale && walletBalance > 0 ? Math.min(walletBalance, itemPrice) : 0
-  const cashNeeded     = isLinkedSale ? Math.max(0, itemPrice - walletCovers) : itemPrice
-  const fullyFromWallet= isLinkedSale && itemPrice > 0 && walletCovers >= itemPrice
-  const newWalletBal   = selectedCustomer && itemPrice > 0
-    ? walletBalance + (formData.type === 'in' ? (parseFloat(formData.amount) || 0) : -itemPrice)
-    : null
-
   // Stock linkage
   const [stockItems, setStockItems] = useState([])
   const [selectedStock, setSelectedStock] = useState(null)
@@ -121,6 +109,19 @@ const AddTransaction = () => {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const customerRef = React.useRef(null)
+
+  // Wallet coverage (computed — no state needed)
+  // These must be defined after selectedCustomer state to avoid TDZ (Temporal Dead Zone)
+  const itemPrice      = parseFloat(totalAmount || formData.amount) || 0
+  const walletBalance  = selectedCustomer?.balance || 0
+  const isLinkedSale   = !!selectedCustomer && formData.type === 'out'
+  const isLinkedReceipt= !!selectedCustomer && formData.type === 'in'
+  const walletCovers   = isLinkedSale && walletBalance > 0 ? Math.min(walletBalance, itemPrice) : 0
+  const cashNeeded     = isLinkedSale ? Math.max(0, itemPrice - walletCovers) : itemPrice
+  const fullyFromWallet= isLinkedSale && itemPrice > 0 && walletCovers >= itemPrice
+  const newWalletBal   = selectedCustomer && itemPrice > 0
+    ? walletBalance + (formData.type === 'in' ? (parseFloat(formData.amount) || 0) : -itemPrice)
+    : null
 
   // Pre-load linked customer when editing
   useEffect(() => {
