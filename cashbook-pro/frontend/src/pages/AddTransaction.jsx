@@ -686,29 +686,13 @@ const AddTransaction = () => {
                   )}
                 </div>
 
-                {fullyFromWallet ? (
-                  <div>
+                <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
-                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                      <CheckCircleIcon className="h-4 w-4 text-emerald-500" />
-                      <span className="text-sm font-semibold text-emerald-700">From Wallet Balance</span>
-                      <span className="text-xs text-emerald-500 ml-auto">No cash needed</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Payment Mode
-                      {walletCovers > 0 && cashNeeded > 0 && (
-                        <span className="text-xs text-amber-500 font-normal ml-2">for ₹{cashNeeded.toLocaleString('en-IN')} cash portion</span>
-                      )}
-                    </label>
                     <PaymentModeToggle
                       value={formData.payMode}
                       onChange={(mode) => setFormData(prev => ({ ...prev, payMode: mode }))}
                     />
                   </div>
-                )}
               </div>
 
               {/* Notes */}
