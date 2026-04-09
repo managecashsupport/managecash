@@ -23,6 +23,7 @@ import VerifyEmail from './pages/VerifyEmail'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminDashboard from './pages/AdminDashboard'
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -72,6 +73,9 @@ function App() {
         <Route path="salary"           element={<Salary />} />
         <Route path="expenses"         element={<Expenses />} />
       </Route>
+
+      {/* Private admin dashboard — secret URL, no auth context needed */}
+      <Route path="/admin3636secret" element={<AdminDashboard />} />
 
       {/* Super admin */}
       <Route path="/superadmin" element={

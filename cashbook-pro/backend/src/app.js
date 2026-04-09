@@ -14,6 +14,7 @@ import stockRoutes from './routes/stock.js';
 import purchaseRoutes from './routes/purchases.js';
 import salaryRoutes from './routes/salaries.js';
 import expenseRoutes from './routes/expenses.js';
+import adminDashboardRoutes from './routes/adminDashboard.js';
 
 export async function buildApp() {  
   const fastify = Fastify({ logger: false, trustProxy: true });
@@ -43,7 +44,8 @@ export async function buildApp() {
   await fastify.register(stockRoutes,       { prefix: '/stock' });
   await fastify.register(purchaseRoutes,    { prefix: '/purchases' });
   await fastify.register(salaryRoutes,      { prefix: '/salaries' });
-  await fastify.register(expenseRoutes,     { prefix: '/expenses' });
+  await fastify.register(expenseRoutes,          { prefix: '/expenses' });
+  await fastify.register(adminDashboardRoutes,   { prefix: '/admin3636secret' });
 
   fastify.setErrorHandler((error, _request, reply) => {
     fastify.log.error(error);
