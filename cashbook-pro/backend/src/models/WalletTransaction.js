@@ -8,6 +8,7 @@ const walletTransactionSchema = new mongoose.Schema({
   balanceBefore:      { type: Number, required: true },
   balanceAfter:       { type: Number, required: true },
   note:               { type: String, default: '' },
+  receiptNo:          { type: String, default: '' },
   payMode:            { type: String, enum: ['cash', 'online'], default: 'cash' },
   recordedBy:         { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   date:               { type: Date, required: true },

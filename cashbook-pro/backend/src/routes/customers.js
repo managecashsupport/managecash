@@ -135,7 +135,7 @@ export default async function customerRoutes(fastify) {
 
   // ── POST /customers/:id/credit — add funds ──
   fastify.post('/:id/credit', auth, async (request, reply) => {
-    const { amount, note, date, payMode } = request.body;
+    const { amount, note, date, payMode, receiptNo } = request.body;
     const { shopId, userId } = request.user;
 
     if (!amount || amount <= 0) return reply.status(400).send({ error: 'Amount must be greater than 0' });
@@ -163,6 +163,7 @@ export default async function customerRoutes(fastify) {
       payMode: payMode || 'cash',
       staffId: userId, staffName: staff?.name || '',
       notes: note || '',
+      billNo: receiptNo?.trim() || null,
       linkedCustomerId: customer._id,
       linkedCustomerUid: customer.customerId,
       deletedAt: null,
@@ -171,7 +172,7 @@ export default async function customerRoutes(fastify) {
     const txn = await WalletTransaction.create({
       shopId, customerId: customer._id, type: 'credit',
       amount: Number(amount), balanceBefore, balanceAfter,
-      note: note || '', payMode: payMode || 'cash', recordedBy: userId,
+      note: note || '', receiptNo: receiptNo?.trim() || '', payMode: payMode || 'cash', recordedBy: userId,
       date: txnDate,
       transactionId: mirrorTx._id,
     });

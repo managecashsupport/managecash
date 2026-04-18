@@ -69,13 +69,14 @@ export default function Purchases() {
   const vendorRef = useRef(null)
 
   // Payment modal
-  const [payTarget, setPayTarget]   = useState(null)
-  const [payAmount, setPayAmount]   = useState('')
-  const [payNote, setPayNote]       = useState('')
-  const [payDate, setPayDate]       = useState(new Date().toISOString().split('T')[0])
-  const [payMode, setPayMode]       = useState('cash')
-  const [payLoading, setPayLoading] = useState(false)
-  const [payError, setPayError]     = useState('')
+  const [payTarget, setPayTarget]     = useState(null)
+  const [payAmount, setPayAmount]     = useState('')
+  const [payNote, setPayNote]         = useState('')
+  const [payDate, setPayDate]         = useState(new Date().toISOString().split('T')[0])
+  const [payMode, setPayMode]         = useState('cash')
+  const [payReceiptNo, setPayReceiptNo] = useState('')
+  const [payLoading, setPayLoading]   = useState(false)
+  const [payError, setPayError]       = useState('')
 
   // Edit modal
   const [editTarget, setEditTarget] = useState(null)
@@ -224,14 +225,14 @@ export default function Purchases() {
   }
 
   // ── Payment ──
-  const openPay = (p) => { setPayTarget(p); setPayAmount(''); setPayNote(''); setPayDate(new Date().toISOString().split('T')[0]); setPayMode('cash'); setPayError('') }
+  const openPay = (p) => { setPayTarget(p); setPayAmount(''); setPayNote(''); setPayDate(new Date().toISOString().split('T')[0]); setPayMode('cash'); setPayReceiptNo(''); setPayError('') }
   const handlePay = async (e) => {
     e.preventDefault(); setPayError('')
     if (!payAmount || Number(payAmount) <= 0) return setPayError('Enter a valid amount')
     if (Number(payAmount) > payTarget.balance) return setPayError(`Maximum payable is ${fmt(payTarget.balance)}`)
     setPayLoading(true)
     try {
-      await api.post(`/purchases/${payTarget._id}/payment`, { amount: Number(payAmount), note: payNote, date: payDate, payMode })
+      await api.post(`/purchases/${payTarget._id}/payment`, { amount: Number(payAmount), note: payNote, date: payDate, payMode, receiptNo: payReceiptNo })
       setPayTarget(null); flash('Payment recorded'); fetchPurchases()
     } catch (err) { setPayError(err.response?.data?.error || 'Failed to record payment') }
     finally { setPayLoading(false) }
@@ -406,6 +407,7 @@ export default function Purchases() {
                             <ClockIcon className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
                             <span className="text-slate-500">{fmtDate(pay.date)}</span>
                             <span className="font-semibold text-emerald-600">{fmt(pay.amount)}</span>
+                            {pay.receiptNo && <span className="font-mono text-blue-600 text-[10px] bg-blue-50 px-1.5 py-0.5 rounded">{pay.receiptNo}</span>}
                             {pay.note && <span className="text-slate-400 italic">{pay.note}</span>}
                           </div>
                         ))}
@@ -687,6 +689,10 @@ export default function Purchases() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Receipt No. <span className="text-slate-400 font-normal">(optional)</span></label>
+                <input type="text" className="input-field" placeholder="e.g. RCP-001" value={payReceiptNo} onChange={e => setPayReceiptNo(e.target.value)} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Note <span className="text-slate-400 font-normal">(optional)</span></label>

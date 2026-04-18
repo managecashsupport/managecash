@@ -15,6 +15,7 @@ const purchasePaymentSchema = new mongoose.Schema({
   note:       { type: String, default: '' },
   payMode:    { type: String, enum: ['cash', 'online'], default: 'cash' },
   date:       { type: Date, required: true },
+  receiptNo:  { type: String, default: '' },
   recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 

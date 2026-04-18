@@ -221,7 +221,7 @@ export default async function purchaseRoutes(fastify) {
 
   // ── POST /purchases/:id/payment — add a payment ──
   fastify.post('/:id/payment', adminAuth, async (request, reply) => {
-    const { amount, note, date, payMode } = request.body;
+    const { amount, note, date, payMode, receiptNo } = request.body;
     const { userId } = request.user;
 
     if (!amount || amount <= 0) return reply.status(400).send({ error: 'Amount must be greater than 0' });
@@ -233,7 +233,7 @@ export default async function purchaseRoutes(fastify) {
 
     const payDate = date ? new Date(date) : new Date();
 
-    purchase.payments.push({ amount: Number(amount), note: note || '', payMode: payMode || 'cash', date: payDate, recordedBy: userId });
+    purchase.payments.push({ amount: Number(amount), note: note || '', payMode: payMode || 'cash', date: payDate, receiptNo: receiptNo?.trim() || '', recordedBy: userId });
     purchase.paidAmount += Number(amount);
     purchase.balance     = purchase.totalAmount - purchase.paidAmount;
     purchase.status      = purchase.balance <= 0 ? 'paid' : 'partial';
@@ -252,6 +252,7 @@ export default async function purchaseRoutes(fastify) {
       payMode: payMode || 'cash',
       staffId: userId, staffName: staff?.name || '',
       notes: note || '',
+      billNo: receiptNo?.trim() || null,
       sourceId: purchase._id, sourceType: 'purchase',
       deletedAt: null,
     });

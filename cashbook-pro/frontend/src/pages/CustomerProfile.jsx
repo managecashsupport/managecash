@@ -31,6 +31,7 @@ const CustomerProfile = () => {
   const [modal, setModal] = useState(null) // 'credit' | 'debit' | null
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
+  const [receiptNo, setReceiptNo] = useState('')
   const [paymentDate, setPaymentDate] = useState('')
   const [payMode, setPayMode] = useState('cash')
   const [modalLoading, setModalLoading] = useState(false)
@@ -68,6 +69,7 @@ const CustomerProfile = () => {
     setModal(type)
     setAmount('')
     setNote('')
+    setReceiptNo('')
     setPaymentDate(new Date().toISOString().split('T')[0])
     setPayMode('cash')
     setModalError('')
@@ -107,7 +109,7 @@ const CustomerProfile = () => {
           payMode,
         }
       } else {
-        payload = { amount: Number(amount), note, date: paymentDate, payMode }
+        payload = { amount: Number(amount), note, date: paymentDate, payMode, ...(modal === 'credit' ? { receiptNo } : {}) }
       }
 
       await api.post(`/customers/${id}/${modal}`, payload)
@@ -350,6 +352,7 @@ const CustomerProfile = () => {
                         {txn.payMode}
                       </span>
                     )}
+                    {txn.receiptNo && <span className="font-mono text-blue-600 text-[10px] bg-blue-50 px-1.5 py-0.5 rounded">{txn.receiptNo}</span>}
                     {txn.note && !isSale && <span className="text-xs text-slate-400 italic">"{txn.note}"</span>}
                   </div>
                 </div>
@@ -509,6 +512,13 @@ const CustomerProfile = () => {
                   ))}
                 </div>
               </div>
+              {modal === 'credit' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Receipt No. <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <input type="text" className="input-field" placeholder="e.g. RCP-001"
+                    value={receiptNo} onChange={e => setReceiptNo(e.target.value)} />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Note <span className="text-slate-400 font-normal">(optional)</span></label>
                 <input type="text" className="input-field" placeholder="e.g. Weekly collection, Rice purchase…"
